@@ -1,0 +1,232 @@
+"""
+Web Server Meta-Scanner.
+
+Fingerprints the web server type and dispatches to specific check modules:
+  - IIS, Apache HTTPD, Nginx, Tomcat, WebLogic, WebSphere
+
+Also runs shared checks: security headers, SSL/TLS, directory listing, etc.
+
+Rule ID format: WEB-COMMON-{NNN}, WEB-{SERVER}-{CATEGORY}-{NNN}
+"""
+
+from __future__ import annotations
+
+import re
+import ssl
+import socket
+from datetime import datetime
+
+from ..core.scanner_base import ScannerBase
+from ..core.credential_manager import CredentialManager
+from ..core.transport import HTTPTransport, HAS_REQUESTS
+
+
+class WebServerScanner(ScannerBase):
+    """Meta-scanner for web servers."""
+
+    SCANNER_NAME = "SkyHigh Web Server Scanner"
+    SCANNER_VERSION = "1.0.0"
+    TARGET_TYPE = "webserver"
+
+    def __init__(self, target: str, credentials: CredentialManager = None,
+                 timeout: int = 30, verbose: bool = False):
+        super().__init__(verbose=verbose)
+        self.target = target
+        self.credentials = credentials
+        self.timeout = timeout
+
+    def scan(self) -> None:
+        if not HAS_REQUESTS:
+            self._error("requests not installed. Run: pip install requests")
+            return
+
+        self._start_timer()
+        targets = self._resolve_targets()
+
+        for url in targets:
+            self._info(f"Scanning web server: {url}")
+            try:
+                self._scan_target(url)
+                self.targets_scanned.append(url)
+            except Exception as e:
+                self._warn(f"Failed to scan {url}: {e}")
+                self.targets_failed.append(url)
+
+        self._stop_timer()
+
+    def _resolve_targets(self) -> list[str]:
+        """Convert target spec into list of URLs."""
+        target = self.target
+        if target.startswith("http://") or target.startswith("https://"):
+            return [target]
+        # Assume HTTPS, fallback to HTTP
+        return [f"https://{target}", f"http://{target}"]
+
+    def _scan_target(self, url: str) -> None:
+        http = HTTPTransport(base_url=url, timeout=self.timeout)
+        try:
+            headers = http.get_headers()
+            if not headers:
+                return
+
+            server_banner = headers.get("Server", "")
+            self._vprint(f"  Server: {server_banner}")
+
+            # Shared checks
+            self._check_server_disclosure(url, server_banner)
+            self._check_security_headers(url, headers)
+            self._check_http_methods(http, url)
+            if url.startswith("https://"):
+                self._check_ssl_tls(url)
+
+            # Dispatch to server-specific checks
+            server_type = self._identify_server(server_banner, http)
+            if server_type:
+                self._dispatch_server_checks(server_type, http, url)
+        finally:
+            http.disconnect()
+
+    def _identify_server(self, banner: str, http: HTTPTransport) -> str:
+        """Identify web server type from banner and probing."""
+        bl = banner.lower()
+        if "apache" in bl and "tomcat" not in bl:
+            return "apache"
+        if "nginx" in bl:
+            return "nginx"
+        if "iis" in bl or "microsoft" in bl:
+            return "iis"
+        if "tomcat" in bl or "coyote" in bl:
+            return "tomcat"
+        if "weblogic" in bl:
+            return "weblogic"
+        if "websphere" in bl:
+            return "websphere"
+
+        # Probe-based detection
+        probes = {
+            "tomcat":    ["/manager/html", "/host-manager/html"],
+            "weblogic":  ["/console", "/wls-wsat/CoordinatorPortType"],
+            "websphere": ["/ibm/console", "/snoop"],
+            "jboss":     ["/management", "/jmx-console"],
+        }
+        for server, paths in probes.items():
+            for path in paths:
+                status, _ = http.probe_path(path)
+                if status in (200, 401, 403):
+                    return server
+        return ""
+
+    def _check_server_disclosure(self, url: str, banner: str) -> None:
+        if banner:
+            # Check for version in banner
+            if re.search(r"\d+\.\d+", banner):
+                self._add(
+                    rule_id="WEB-COMMON-001", category="Information Disclosure",
+                    name="Server version disclosed in header",
+                    severity="MEDIUM", file_path=url, line_num=0,
+                    line_content=f"Server: {banner}",
+                    description="Server header reveals version information.",
+                    recommendation="Remove or obscure version from Server header.",
+                    cwe="CWE-200",
+                )
+
+    def _check_security_headers(self, url: str, headers: dict) -> None:
+        required_headers = {
+            "X-Frame-Options": ("WEB-COMMON-002", "MEDIUM", "Clickjacking protection"),
+            "Content-Security-Policy": ("WEB-COMMON-003", "MEDIUM", "XSS mitigation"),
+            "Strict-Transport-Security": ("WEB-COMMON-004", "HIGH", "HTTPS enforcement"),
+            "X-Content-Type-Options": ("WEB-COMMON-005", "LOW", "MIME sniffing protection"),
+            "X-XSS-Protection": ("WEB-COMMON-006", "LOW", "XSS filter"),
+        }
+        for header, (rule_id, severity, purpose) in required_headers.items():
+            if header not in headers:
+                self._add(
+                    rule_id=rule_id, category="Security Headers",
+                    name=f"Missing {header} header",
+                    severity=severity, file_path=url, line_num=0,
+                    line_content=f"{header}: (missing)",
+                    description=f"{header} provides {purpose}.",
+                    recommendation=f"Add {header} response header.",
+                    cwe="CWE-693",
+                )
+
+    def _check_http_methods(self, http: HTTPTransport, url: str) -> None:
+        """Check for dangerous HTTP methods (TRACE, TRACK)."""
+        try:
+            import requests
+            resp = requests.request("TRACE", url, timeout=self.timeout, verify=False)
+            if resp.status_code == 200:
+                self._add(
+                    rule_id="WEB-COMMON-009", category="HTTP Methods",
+                    name="HTTP TRACE method enabled",
+                    severity="MEDIUM", file_path=url, line_num=0,
+                    line_content="TRACE / → 200 OK",
+                    description="TRACE can be used for Cross-Site Tracing attacks.",
+                    recommendation="Disable TRACE method on the web server.",
+                    cwe="CWE-693",
+                )
+        except Exception:
+            pass
+
+    def _check_ssl_tls(self, url: str) -> None:
+        """Check SSL/TLS configuration."""
+        ssl_info = HTTPTransport(url, timeout=self.timeout).get_ssl_info()
+        if "error" in ssl_info:
+            return
+
+        # Check protocol version
+        protocol = ssl_info.get("protocol", "")
+        if protocol in ("SSLv3", "TLSv1", "TLSv1.1"):
+            self._add(
+                rule_id="WEB-COMMON-007", category="SSL/TLS",
+                name=f"Weak TLS protocol: {protocol}",
+                severity="HIGH", file_path=url, line_num=0,
+                line_content=f"Protocol: {protocol}",
+                description=f"{protocol} is deprecated and vulnerable.",
+                recommendation="Enforce TLS 1.2+ minimum.",
+                cwe="CWE-327",
+            )
+
+        # Check certificate expiry
+        not_after = ssl_info.get("not_after", "")
+        if not_after:
+            try:
+                expiry = datetime.strptime(not_after, "%b %d %H:%M:%S %Y %Z")
+                if expiry < datetime.utcnow():
+                    self._add(
+                        rule_id="WEB-COMMON-008", category="SSL/TLS",
+                        name="SSL certificate expired",
+                        severity="CRITICAL", file_path=url, line_num=0,
+                        line_content=f"Expires: {not_after}",
+                        description="The SSL certificate has expired.",
+                        recommendation="Renew the SSL certificate.",
+                        cwe="CWE-295",
+                    )
+            except ValueError:
+                pass
+
+    def _dispatch_server_checks(self, server_type: str, http: HTTPTransport,
+                                url: str) -> None:
+        """Dispatch to server-specific check module."""
+        try:
+            if server_type == "iis":
+                from ..webservers.iis_checks import run_checks
+            elif server_type == "apache":
+                from ..webservers.apache_checks import run_checks
+            elif server_type == "nginx":
+                from ..webservers.nginx_checks import run_checks
+            elif server_type == "tomcat":
+                from ..webservers.tomcat_checks import run_checks
+            elif server_type == "weblogic":
+                from ..webservers.weblogic_checks import run_checks
+            elif server_type == "websphere":
+                from ..webservers.websphere_checks import run_checks
+            else:
+                return
+            findings = run_checks(http, url, self.credentials, self.verbose)
+            for f in findings:
+                self._add_finding(f)
+        except ImportError:
+            self._vprint(f"  {server_type} check module not available")
+        except Exception as e:
+            self._warn(f"  {server_type} checks failed: {e}")

@@ -1,0 +1,14 @@
+[
+  {"cve_id": "CVE-2021-3129", "platform": "laravel", "severity": "CRITICAL", "cvss": 9.8,
+   "cwe": "CWE-94", "published": "2021-01-12", "name": "Ignition RCE via Debugger",
+   "recommendation": "Update facade/ignition to >= 2.5.2 and set APP_DEBUG=false.", "cisa_kev": true,
+   "affected": ">=2.5.0,<2.5.2"},
+  {"cve_id": "CVE-2021-21263", "platform": "laravel", "severity": "HIGH", "cvss": 7.5,
+   "cwe": "CWE-89", "published": "2021-01-19", "name": "Laravel Query Builder SQL Injection",
+   "recommendation": "Upgrade Laravel to >= 6.20.12 / 7.30.4 / 8.22.1.",
+   "affected": ">=6.0,<6.20.12"},
+  {"cve_id": "CVE-2018-15133", "platform": "laravel", "severity": "CRITICAL", "cvss": 9.8,
+   "cwe": "CWE-502", "published": "2018-08-09", "name": "Laravel Token Deserialization RCE",
+   "recommendation": "Upgrade Laravel to >= 5.6.30.", "cisa_kev": true,
+   "affected": ">=5.5.0,<5.6.30"}
+]

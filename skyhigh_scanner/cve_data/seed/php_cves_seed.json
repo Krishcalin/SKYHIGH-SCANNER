@@ -1,0 +1,17 @@
+[
+  {"cve_id": "CVE-2024-4577", "platform": "php", "severity": "CRITICAL", "cvss": 9.8,
+   "cwe": "CWE-78", "published": "2024-06-09", "name": "PHP CGI Argument Injection (Windows)",
+   "recommendation": "Upgrade PHP to >= 8.1.29 / 8.2.20 / 8.3.8.", "cisa_kev": true,
+   "affected": ">=8.1.0,<8.1.29"},
+  {"cve_id": "CVE-2023-3824", "platform": "php", "severity": "CRITICAL", "cvss": 9.8,
+   "cwe": "CWE-119", "published": "2023-08-11", "name": "PHP PHAR Buffer Overflow",
+   "recommendation": "Upgrade PHP to latest patch.", "affected": ">=8.0.0,<8.0.30"},
+  {"cve_id": "CVE-2019-11043", "platform": "php", "severity": "CRITICAL", "cvss": 9.8,
+   "cwe": "CWE-787", "published": "2019-10-28", "name": "PHP-FPM Buffer Overflow RCE",
+   "recommendation": "Upgrade PHP to >= 7.2.24 / 7.3.11.", "cisa_kev": true,
+   "affected": ">=7.1.0,<7.3.11"},
+  {"cve_id": "CVE-2021-3129", "platform": "laravel", "severity": "CRITICAL", "cvss": 9.8,
+   "cwe": "CWE-94", "published": "2021-01-12", "name": "Laravel Ignition RCE",
+   "recommendation": "Update facade/ignition to >= 2.5.2.", "cisa_kev": true,
+   "affected": ">=2.5.0,<2.5.2"}
+]

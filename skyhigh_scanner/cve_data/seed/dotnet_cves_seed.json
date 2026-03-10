@@ -1,0 +1,16 @@
+[
+  {"cve_id": "CVE-2024-38081", "platform": "dotnet", "severity": "HIGH", "cvss": 7.3,
+   "cwe": "CWE-269", "published": "2024-07-09", "name": ".NET Privilege Escalation",
+   "recommendation": "Update .NET runtime to latest patch.", "affected": ">=6.0,<6.0.32"},
+  {"cve_id": "CVE-2023-44487", "platform": "aspnet_core", "severity": "HIGH", "cvss": 7.5,
+   "cwe": "CWE-400", "published": "2023-10-10", "name": "HTTP/2 Rapid Reset DoS",
+   "recommendation": "Update ASP.NET Core to >= 6.0.23 / 7.0.12.", "cisa_kev": true,
+   "affected": ">=6.0,<6.0.23"},
+  {"cve_id": "CVE-2022-41032", "platform": "dotnet", "severity": "HIGH", "cvss": 7.8,
+   "cwe": "CWE-269", "published": "2022-10-11", "name": ".NET NuGet Client Elevation of Privilege",
+   "recommendation": "Update .NET SDK.", "affected": ">=6.0,<6.0.10"},
+  {"cve_id": "CVE-2020-1147", "platform": "dotnet_framework", "severity": "HIGH", "cvss": 7.8,
+   "cwe": "CWE-502", "published": "2020-07-14", "name": ".NET Framework XML Deserialization RCE",
+   "recommendation": "Install July 2020 .NET Framework update.", "cisa_kev": true,
+   "affected": ">=2.0,<=4.8"}
+]

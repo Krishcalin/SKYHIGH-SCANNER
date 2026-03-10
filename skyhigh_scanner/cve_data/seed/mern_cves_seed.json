@@ -1,0 +1,17 @@
+[
+  {"cve_id": "CVE-2023-32002", "platform": "nodejs", "severity": "CRITICAL", "cvss": 9.8,
+   "cwe": "CWE-311", "published": "2023-08-21", "name": "Node.js Policy Bypass via Module.require",
+   "recommendation": "Upgrade Node.js to >= 16.20.2 / 18.17.1.", "affected": ">=16.0,<16.20.2"},
+  {"cve_id": "CVE-2022-32213", "platform": "nodejs", "severity": "HIGH", "cvss": 8.1,
+   "cwe": "CWE-444", "published": "2022-07-14", "name": "Node.js HTTP Request Smuggling",
+   "recommendation": "Upgrade Node.js to >= 14.20.0.", "affected": ">=14.0,<14.20.0"},
+  {"cve_id": "CVE-2024-21892", "platform": "nodejs", "severity": "HIGH", "cvss": 7.8,
+   "cwe": "CWE-269", "published": "2024-02-20", "name": "Node.js Linux CAP_NET_BIND_SERVICE LPE",
+   "recommendation": "Upgrade Node.js to latest LTS.", "affected": ">=18.0,<18.19.1"},
+  {"cve_id": "CVE-2019-2389", "platform": "mongodb", "severity": "MEDIUM", "cvss": 6.5,
+   "cwe": "CWE-319", "published": "2019-08-06", "name": "MongoDB Diagnostic Data Leak",
+   "recommendation": "Upgrade MongoDB.", "affected": ">=3.4,<4.0.12"},
+  {"cve_id": "CVE-2021-32050", "platform": "mongodb", "severity": "HIGH", "cvss": 7.5,
+   "cwe": "CWE-200", "published": "2023-08-29", "name": "MongoDB Connection String Credential Leak",
+   "recommendation": "Upgrade MongoDB drivers.", "affected": ">=4.0,<5.0.14"}
+]

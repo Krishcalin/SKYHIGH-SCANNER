@@ -1,0 +1,15 @@
+[
+  {"cve_id": "CVE-2024-20985", "platform": "mysql", "severity": "HIGH", "cvss": 7.5,
+   "cwe": "CWE-20", "published": "2024-01-16", "name": "MySQL Server DoS via UDF",
+   "recommendation": "Apply Oracle CPU January 2024.", "affected": ">=8.0.0,<8.0.36"},
+  {"cve_id": "CVE-2023-21980", "platform": "mysql", "severity": "HIGH", "cvss": 7.1,
+   "cwe": "CWE-284", "published": "2023-04-18", "name": "MySQL Client Protocol RCE",
+   "recommendation": "Apply Oracle CPU April 2023.", "affected": ">=5.7.0,<8.0.33"},
+  {"cve_id": "CVE-2020-14812", "platform": "mysql", "severity": "MEDIUM", "cvss": 4.9,
+   "cwe": "CWE-20", "published": "2020-10-21", "name": "MySQL Server Optimizer DoS",
+   "recommendation": "Upgrade MySQL.", "affected": ">=5.6.0,<8.0.22"},
+  {"cve_id": "CVE-2012-2122", "platform": "mysql", "severity": "HIGH", "cvss": 7.5,
+   "cwe": "CWE-287", "published": "2012-06-26", "name": "MySQL Authentication Bypass (memcmp)",
+   "recommendation": "Upgrade MySQL to >= 5.1.63 / 5.5.25.", "cisa_kev": true,
+   "affected": ">=5.1.0,<5.1.63"}
+]

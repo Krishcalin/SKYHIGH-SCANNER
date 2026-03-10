@@ -1,0 +1,15 @@
+[
+  {"cve_id": "CVE-2012-1675", "platform": "oracle_db", "severity": "HIGH", "cvss": 7.5,
+   "cwe": "CWE-284", "published": "2012-05-08", "name": "TNS Poison — Remote Registration Hijacking",
+   "recommendation": "Set SECURE_REGISTER_LISTENER and apply patches.",
+   "affected": ">=10.2,<12.2"},
+  {"cve_id": "CVE-2018-3110", "platform": "oracle_db", "severity": "CRITICAL", "cvss": 9.8,
+   "cwe": "CWE-502", "published": "2018-07-18", "name": "Oracle DB Java VM RCE",
+   "recommendation": "Apply Oracle CPU July 2018.", "affected": ">=11.2,<12.2.0.2"},
+  {"cve_id": "CVE-2021-2351", "platform": "oracle_db", "severity": "HIGH", "cvss": 8.3,
+   "cwe": "CWE-284", "published": "2021-07-21", "name": "Oracle DB JDBC/OCI Network Takeover",
+   "recommendation": "Apply Oracle CPU July 2021.", "affected": ">=12.1,<21.3"},
+  {"cve_id": "CVE-2022-21500", "platform": "oracle_db", "severity": "HIGH", "cvss": 7.5,
+   "cwe": "CWE-200", "published": "2022-05-19", "name": "Oracle DB Information Disclosure",
+   "recommendation": "Apply Oracle CPU May 2022.", "affected": ">=19.0,<19.15"}
+]
