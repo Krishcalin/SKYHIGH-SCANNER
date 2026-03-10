@@ -125,7 +125,7 @@ def _check_version(ssh, host_ip: str, findings: List[Finding]) -> None:
         ver = m.group(1)
         major_minor = ".".join(ver.split(".")[:2])
         eol = {"3.6": "2021-04", "4.0": "2022-04", "4.2": "2023-04",
-               "4.4": "2024-02", "5.0": "2024-10"}
+               "4.4": "2024-02", "5.0": "2024-10", "6.0": "2025-07"}
         if major_minor in eol:
             findings.append(Finding(
                 rule_id="DB-MONGO-VER-001",

@@ -131,6 +131,8 @@ class CVEDatabase:
         with open(path, "r", encoding="utf-8") as fh:
             entries = json.load(fh)
 
+        if isinstance(entries, dict):
+            entries = entries.get("cves", [])
         if not isinstance(entries, list):
             return 0
 

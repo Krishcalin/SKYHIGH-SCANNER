@@ -17,11 +17,14 @@ from ..core.credential_manager import CredentialManager
 
 
 IIS_CVE_VERSIONS = {
+    "6.0":  ("CVE-2017-7269", "CRITICAL", "IIS 6.0 WebDAV ScStoragePathFromUrl Buffer Overflow"),
     "7.0":  ("CVE-2010-3972", "CRITICAL", "IIS 7.0 FTP Service Buffer Overflow"),
     "7.5":  ("CVE-2014-4078", "HIGH", "IIS 7.5 Request Filtering Bypass"),
     "8.0":  ("CVE-2014-4078", "HIGH", "IIS 8.0 Request Filtering Bypass"),
-    "8.5":  ("CVE-2017-7269", "CRITICAL", "IIS 6.0/8.5 WebDAV Buffer Overflow"),
-    "10.0": ("CVE-2021-31166", "CRITICAL", "HTTP Protocol Stack RCE"),
+    "8.5":  ("CVE-2015-1635", "CRITICAL", "IIS 8.5 HTTP.sys Integer Overflow RCE"),
+    "10.0": ("CVE-2021-31166", "CRITICAL", "HTTP Protocol Stack Wormable RCE"),
+    "10.0.17763": ("CVE-2022-21907", "CRITICAL", "HTTP Protocol Stack RCE via Trailer"),
+    "10.0.20348": ("CVE-2023-44487", "HIGH", "HTTP/2 Rapid Reset DDoS"),
 }
 
 

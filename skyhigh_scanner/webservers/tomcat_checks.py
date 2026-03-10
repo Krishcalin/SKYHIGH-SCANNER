@@ -25,6 +25,22 @@ TOMCAT_CVES = [
      "name": "CGI Servlet Command Injection (Windows)"},
     {"cve": "CVE-2017-12617", "affected": ">=7.0.0,<9.0.1", "severity": "HIGH",
      "name": "JSP Upload via PUT method"},
+    {"cve": "CVE-2016-8735", "affected": ">=6.0.0,<9.0.0", "severity": "CRITICAL",
+     "name": "JmxRemoteLifecycleListener Deserialization RCE"},
+    {"cve": "CVE-2020-9484", "affected": ">=7.0.0,<9.0.35", "severity": "HIGH",
+     "name": "Session Persistence Deserialization RCE"},
+    {"cve": "CVE-2022-23181", "affected": ">=8.5.0,<9.0.58", "severity": "HIGH",
+     "name": "Temp File Race Condition Privilege Escalation"},
+    {"cve": "CVE-2020-11996", "affected": ">=8.5.0,<9.0.36", "severity": "HIGH",
+     "name": "HTTP/2 Denial of Service"},
+    {"cve": "CVE-2019-0221", "affected": ">=7.0.0,<9.0.20", "severity": "MEDIUM",
+     "name": "SSI printenv XSS"},
+    {"cve": "CVE-2024-23672", "affected": ">=8.5.0,<9.0.86", "severity": "HIGH",
+     "name": "WebSocket DoS via incomplete close"},
+    {"cve": "CVE-2024-21733", "affected": ">=8.5.7,<9.0.84", "severity": "MEDIUM",
+     "name": "HTTP Request Smuggling Info Leak"},
+    {"cve": "CVE-2017-12615", "affected": ">=7.0.0,<7.0.81", "severity": "HIGH",
+     "name": "PUT method arbitrary file upload (Windows)"},
 ]
 
 DEFAULT_CREDS = [

@@ -37,5 +37,14 @@
   "openssh": "cpe:2.3:a:openbsd:openssh:*",
   "openssl": "cpe:2.3:a:openssl:openssl:*",
   "sudo": "cpe:2.3:a:sudo_project:sudo:*",
-  "glibc": "cpe:2.3:a:gnu:glibc:*"
+  "glibc": "cpe:2.3:a:gnu:glibc:*",
+  "cisco_asa": "cpe:2.3:o:cisco:adaptive_security_appliance_software:*",
+  "cisco_ftd": "cpe:2.3:a:cisco:firepower_threat_defense:*",
+  "exchange_server": "cpe:2.3:a:microsoft:exchange_server:*",
+  "polkit": "cpe:2.3:a:polkit_project:polkit:*",
+  "bash": "cpe:2.3:a:gnu:bash:*",
+  "systemd": "cpe:2.3:a:systemd_project:systemd:*",
+  "curl": "cpe:2.3:a:haxx:curl:*",
+  "struts": "cpe:2.3:a:apache:struts:*",
+  "windows_server_2025": "cpe:2.3:o:microsoft:windows_server_2025:*"
 }

@@ -13,6 +13,26 @@ from typing import List
 from ..core.finding import Finding
 from ..core.transport import HTTPTransport
 from ..core.credential_manager import CredentialManager
+from ..core.version_utils import version_in_range
+
+WEBSPHERE_CVES = [
+    {"cve": "CVE-2020-4450", "affected": ">=8.5.0,<=9.0.5.4", "severity": "CRITICAL",
+     "name": "IIOP Deserialization Remote Code Execution"},
+    {"cve": "CVE-2015-7450", "affected": ">=7.0.0,<=9.0.0.1", "severity": "CRITICAL",
+     "name": "Commons Collections Deserialization RCE"},
+    {"cve": "CVE-2020-4362", "affected": ">=8.5.0,<=9.0.5.3", "severity": "HIGH",
+     "name": "SOAP Connector Deserialization RCE"},
+    {"cve": "CVE-2019-4279", "affected": ">=8.5.0,<=9.0.0.10", "severity": "CRITICAL",
+     "name": "JSF ViewState Deserialization RCE"},
+    {"cve": "CVE-2020-4589", "affected": ">=7.0.0,<=9.0.5.4", "severity": "HIGH",
+     "name": "XML External Entity Injection"},
+    {"cve": "CVE-2021-20492", "affected": ">=7.0.0,<=9.0.5.8", "severity": "HIGH",
+     "name": "XXE via XML Processing"},
+    {"cve": "CVE-2022-22477", "affected": ">=8.5.0,<=9.0.5.12", "severity": "MEDIUM",
+     "name": "Management Console XSS"},
+    {"cve": "CVE-2023-50314", "affected": ">=8.5.0,<=9.0.5.18", "severity": "HIGH",
+     "name": "Liberty SSRF via Server-Side Includes"},
+]
 
 
 def run_checks(http: HTTPTransport, url: str,
