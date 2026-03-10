@@ -1,2 +1,2 @@
-# SKY-HIGH-SCANNER
+# SKYHIGH-SCANNER
 An Active Vulnerability Assessment Scanner
