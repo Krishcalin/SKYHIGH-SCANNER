@@ -132,6 +132,8 @@ class ScannerBase(ABC):
         counts = Counter(f.severity for f in self.findings)
         categories = Counter(f.category for f in self.findings)
         kev_count = sum(1 for f in self.findings if f.cisa_kev)
+        epss_values = [f.epss for f in self.findings if f.epss is not None]
+        epss_high = sum(1 for v in epss_values if v >= 0.5)
         return {
             "scanner": self.SCANNER_NAME,
             "version": self.SCANNER_VERSION,
@@ -142,6 +144,8 @@ class ScannerBase(ABC):
             "targets_failed": len(self.targets_failed),
             "total_findings": len(self.findings),
             "kev_findings": kev_count,
+            "epss_high_risk": epss_high,
+            "epss_populated": len(epss_values),
             "severity_counts": {
                 "CRITICAL": counts.get("CRITICAL", 0),
                 "HIGH": counts.get("HIGH", 0),
@@ -167,6 +171,8 @@ class ScannerBase(ABC):
         print(f" Total findings  : {total}")
         if s["kev_findings"]:
             print(f" \033[91mCISA KEV (Actively Exploited): {s['kev_findings']}{self.RESET}")
+        if s["epss_high_risk"]:
+            print(f" \033[33mEPSS High Risk (≥50%): {s['epss_high_risk']}{self.RESET}")
         print(f"{'-'*70}")
 
         for sev in ("CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"):
@@ -199,6 +205,8 @@ class ScannerBase(ABC):
                 print(f"    CWE    : {f.cwe}")
             if f.cvss:
                 print(f"    CVSS   : {f.cvss}")
+            if f.epss is not None:
+                print(f"    EPSS   : {f.epss * 100:.1f}%")
 
         print(f"\n{'='*70}\n")
 
@@ -222,7 +230,7 @@ class ScannerBase(ABC):
         fields = [
             "rule_id", "severity", "name", "category", "cve", "cwe",
             "file_path", "line_content", "description", "recommendation",
-            "cvss", "cisa_kev", "target_type",
+            "cvss", "epss", "cisa_kev", "target_type",
         ]
         with open(path, "w", newline="", encoding="utf-8") as fh:
             writer = csv.DictWriter(fh, fieldnames=fields, extrasaction="ignore")

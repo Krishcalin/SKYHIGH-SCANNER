@@ -214,13 +214,23 @@ class CVESync:
             published = cve_data.get("published", "")
             modified = cve_data.get("lastModified", "")
 
-            # Insert CVE
+            # Insert CVE (preserve existing EPSS and KEV flags)
             cur.execute("""
-                INSERT OR REPLACE INTO cves
+                INSERT INTO cves
                     (cve_id, platform, severity, cvss_v3, cvss_vector, cwe,
                      published, modified, name, description, recommendation,
                      cisa_kev, epss_score)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL)
+                ON CONFLICT(cve_id) DO UPDATE SET
+                    platform = excluded.platform,
+                    severity = excluded.severity,
+                    cvss_v3 = excluded.cvss_v3,
+                    cvss_vector = excluded.cvss_vector,
+                    cwe = excluded.cwe,
+                    published = excluded.published,
+                    modified = excluded.modified,
+                    name = excluded.name,
+                    description = excluded.description
             """, (cve_id, platform, severity, cvss_score, cvss_vector, cwe,
                   published, modified, cve_id, desc_text, ""))
 
@@ -291,9 +301,12 @@ class CVESync:
             results[platform] = count
             print(f"  → {count} CVEs", file=sys.stderr)
 
-        # After NVD sync, overlay CISA KEV
+        # After NVD sync, overlay CISA KEV and EPSS
         kev_count = self.sync_cisa_kev()
         results["_cisa_kev_flagged"] = kev_count
+
+        epss_count = self.sync_epss()
+        results["_epss_enriched"] = epss_count
 
         # Save last sync timestamp
         cur = self.db.conn.cursor()
@@ -350,6 +363,74 @@ class CVESync:
         self.db.conn.commit()
         self._log(f"  Flagged {count} CVEs as CISA KEV")
         return count
+
+    # ── EPSS sync from FIRST.org ────────────────────────────────────
+    EPSS_API_BASE = "https://api.first.org/data/v1/epss"
+    EPSS_BATCH_SIZE = 100  # max CVEs per request
+
+    def sync_epss(self) -> int:
+        """Fetch EPSS scores from FIRST.org API for all CVEs in the database.
+
+        Returns:
+            Number of CVEs updated with EPSS scores.
+        """
+        self._log("Fetching EPSS scores from FIRST.org API...")
+        cur = self.db.conn.cursor()
+        cur.execute("SELECT cve_id FROM cves")
+        all_cves = [row["cve_id"] for row in cur.fetchall()]
+
+        if not all_cves:
+            self._log("  No CVEs in database to enrich")
+            return 0
+
+        total_updated = 0
+        for i in range(0, len(all_cves), self.EPSS_BATCH_SIZE):
+            batch = all_cves[i:i + self.EPSS_BATCH_SIZE]
+            cve_list = ",".join(batch)
+
+            try:
+                resp = self._session.get(
+                    self.EPSS_API_BASE,
+                    params={"cve": cve_list},
+                    timeout=30,
+                )
+                resp.raise_for_status()
+                data = resp.json()
+            except Exception as e:
+                self._log(f"  Error fetching EPSS batch {i // self.EPSS_BATCH_SIZE + 1}: {e}")
+                continue
+
+            epss_map = {}
+            for entry in data.get("data", []):
+                cve_id = entry.get("cve")
+                score = entry.get("epss")
+                if cve_id and score is not None:
+                    try:
+                        epss_map[cve_id] = float(score)
+                    except (ValueError, TypeError):
+                        continue
+
+            if epss_map:
+                count = self.db.enrich_epss(epss_map)
+                total_updated += count
+
+            self._log(f"  EPSS batch {i // self.EPSS_BATCH_SIZE + 1}: "
+                      f"{len(epss_map)} scores fetched, {total_updated} total updated")
+
+            # Be polite to the API
+            if i + self.EPSS_BATCH_SIZE < len(all_cves):
+                time.sleep(1.0)
+
+        self._log(f"  EPSS enrichment complete: {total_updated} CVEs updated")
+
+        # Save EPSS sync timestamp
+        cur.execute("""
+            INSERT OR REPLACE INTO sync_metadata (key, value)
+            VALUES ('last_epss_sync', ?)
+        """, (datetime.now(timezone.utc).isoformat(),))
+        self.db.conn.commit()
+
+        return total_updated
 
     # ── Vendor feed sync stubs ───────────────────────────────────────
     def sync_msrc(self) -> int:

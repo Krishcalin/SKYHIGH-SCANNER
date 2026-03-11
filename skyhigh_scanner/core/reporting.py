@@ -70,6 +70,9 @@ def generate_html_report(
     low = sev_counts.get("LOW", 0)
     info = sev_counts.get("INFO", 0)
 
+    # EPSS stats
+    epss_high_risk = sum(1 for f in findings if f.epss is not None and f.epss >= 0.5)
+
     # Build findings HTML rows
     findings_html = []
     for f in sorted_findings:
@@ -78,6 +81,12 @@ def generate_html_report(
                      if f.cisa_kev else "")
         cve_str = f'<span class="cve-tag">{html.escape(f.cve)}</span>' if f.cve else ""
         cvss_str = f'<span class="cvss-tag">CVSS {f.cvss}</span>' if f.cvss else ""
+        if f.epss is not None:
+            epss_pct = f"{f.epss * 100:.1f}%"
+            epss_cls = "epss-high" if f.epss >= 0.5 else "epss-med" if f.epss >= 0.1 else "epss-low"
+            epss_str = f'<span class="epss-tag {epss_cls}">EPSS {epss_pct}</span>'
+        else:
+            epss_str = ""
 
         findings_html.append(f"""
         <div class="finding-card" data-severity="{f.severity}"
@@ -89,7 +98,7 @@ def generate_html_report(
             </span>
             <span class="rule-id">{html.escape(f.rule_id)}</span>
             <span class="finding-name">{html.escape(f.name)}</span>
-            {cve_str} {cvss_str} {kev_badge}
+            {cve_str} {cvss_str} {epss_str} {kev_badge}
           </div>
           <div class="finding-body">
             <div class="finding-detail">
@@ -143,6 +152,7 @@ def generate_html_report(
   .stat-medium .stat-num {{ color:#ffc107; }}
   .stat-low .stat-num {{ color:#17a2b8; }}
   .stat-kev .stat-num {{ color:#ff4444; }}
+  .stat-epss .stat-num {{ color:#fd7e14; }}
 
   .filters {{ padding:15px 40px; display:flex; gap:10px; flex-wrap:wrap; align-items:center; }}
   .filters select, .filters input {{
@@ -171,6 +181,10 @@ def generate_html_report(
   .finding-name {{ font-weight:600; }}
   .cve-tag {{ background:#5c2d91; padding:2px 8px; border-radius:4px; font-size:0.8em; }}
   .cvss-tag {{ background:#333; padding:2px 8px; border-radius:4px; font-size:0.8em; }}
+  .epss-tag {{ padding:2px 8px; border-radius:4px; font-size:0.8em; font-weight:600; }}
+  .epss-high {{ background:#dc3545; color:white; }}
+  .epss-med {{ background:#fd7e14; color:white; }}
+  .epss-low {{ background:#28a745; color:white; }}
   .kev-badge {{
     background:#ff4444; padding:2px 8px; border-radius:4px;
     font-size:0.75em; font-weight:bold; animation: pulse 2s infinite;
@@ -214,6 +228,7 @@ def generate_html_report(
   <div class="stat-card stat-medium"><div class="stat-num">{med}</div><div class="stat-label">Medium</div></div>
   <div class="stat-card stat-low"><div class="stat-num">{low}</div><div class="stat-label">Low</div></div>
   <div class="stat-card stat-kev"><div class="stat-num">{summary.get('kev_findings', 0)}</div><div class="stat-label">CISA KEV</div></div>
+  <div class="stat-card stat-epss"><div class="stat-num">{epss_high_risk}</div><div class="stat-label">EPSS &ge; 50%</div></div>
 </div>
 
 <div class="filters">

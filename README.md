@@ -13,7 +13,7 @@
   <a href="#supported-platforms"><img src="https://img.shields.io/badge/platforms-23-orange.svg" alt="23 Platforms" /></a>
   <a href="#cve-database"><img src="https://img.shields.io/badge/CVEs-32%2C000+-red.svg" alt="32,000+ CVEs" /></a>
   <a href="#features"><img src="https://img.shields.io/badge/rules-~800-purple.svg" alt="~800 Rules" /></a>
-  <a href="#testing"><img src="https://img.shields.io/badge/tests-166_passing-brightgreen.svg" alt="166 Tests" /></a>
+  <a href="#testing"><img src="https://img.shields.io/badge/tests-190_passing-brightgreen.svg" alt="190 Tests" /></a>
 </p>
 
 ---
@@ -48,7 +48,7 @@ Unlike static analysis tools, SkyHigh Scanner actively queries running systems �
 - **Active scanning** — Connects to live hosts via SSH, WinRM, Netmiko, SNMP, SMB, and HTTP
 - **Auto-discovery** — Scans IP ranges, fingerprints services, classifies hosts, and dispatches the right scanner
 - **~800 security rules** across 21 check modules
-- **32,000+ CVEs** via NVD API 2.0 sync (2010-2025) with CISA KEV overlay
+- **32,000+ CVEs** via NVD API 2.0 sync (2010-2025) with CISA KEV + EPSS overlay
 - **6 CIS benchmarks** — Windows, Linux, Cisco, Oracle DB, MySQL, MongoDB
 - **Interactive HTML reports** — Dark theme, JS filtering, severity-colored cards, print-friendly
 - **Graceful degradation** — All transport dependencies are optional; missing libraries are handled cleanly
@@ -63,7 +63,7 @@ Unlike static analysis tools, SkyHigh Scanner actively queries running systems �
 | **Web Server Scanning** | IIS, Apache HTTPD, Nginx, Tomcat, WebLogic, WebSphere |
 | **Middleware Scanning** | Java/JDK, .NET Framework, PHP, Node.js, Laravel, Oracle Middleware |
 | **Database Scanning** | Oracle DB, MySQL/MariaDB, MongoDB |
-| **CVE Detection** | Version-based CVE matching against local SQLite database |
+| **CVE Detection** | Version-based CVE matching against local SQLite database with EPSS scores |
 | **CIS Benchmarks** | Hardening checks based on CIS benchmark guidelines |
 | **Network Discovery** | TCP port scanning, banner grabbing, OS classification |
 | **Credential Management** | CLI args, environment variables, or credential files |
@@ -283,9 +283,10 @@ Commands:
   webserver     Scan web servers via HTTP
   middleware    Scan middleware runtimes via SSH/WinRM
   database      Scan database services
-  cve-sync      Sync CVEs from NVD API 2.0
+  cve-sync      Sync CVEs from NVD API 2.0 (includes EPSS + KEV)
   cve-import    Import seed CVE data from bundled JSON files
-  cve-stats     Display CVE database statistics
+  cve-stats     Display CVE database statistics (includes EPSS coverage)
+  epss-sync     Fetch/update EPSS scores from FIRST.org API
 ```
 
 ### Common Options
@@ -317,6 +318,23 @@ python -m skyhigh_scanner cve-sync
 
 > Get a free NVD API key at https://nvd.nist.gov/developers/request-an-api-key to increase sync speed (0.6s vs 6s between requests).
 
+### EPSS Sync Options
+
+```bash
+# Update EPSS scores for all CVEs in the database
+python -m skyhigh_scanner epss-sync
+
+# With verbose output
+python -m skyhigh_scanner epss-sync -v
+```
+
+EPSS (Exploit Prediction Scoring System) scores are fetched from the FIRST.org API and indicate the probability that a CVE will be exploited in the wild within 30 days. Scores are shown in reports as color-coded badges:
+- **Red** (>=50%) -- High exploit probability
+- **Orange** (>=10%) -- Moderate exploit probability
+- **Green** (<10%) -- Low exploit probability
+
+> EPSS is also automatically synced during `cve-sync`. Use `epss-sync` to update scores independently.
+
 ### Environment Variables
 
 Instead of passing credentials on the command line, set environment variables:
@@ -341,7 +359,7 @@ SkyHigh Scanner maintains a local SQLite database of CVEs for offline version-ba
 
 | Table | Purpose |
 |-------|---------|
-| `cves` | CVE ID, description, CVSS score, severity, published date, CISA KEV flag |
+| `cves` | CVE ID, description, CVSS score, EPSS score, severity, published date, CISA KEV flag |
 | `affected_versions` | CPE strings and version ranges per CVE |
 | `linux_packages` | Package-level CVE mappings for Linux distributions |
 | `sync_metadata` | Tracks last sync timestamps per platform |
@@ -353,6 +371,7 @@ SkyHigh Scanner maintains a local SQLite database of CVEs for offline version-ba
 | **Seed files** | 451 curated CVEs (bundled, 21 files) | `cve-import` command |
 | **NVD API 2.0** | ~32,000 CVEs (2010-2025) | `cve-sync` command, 49 CPE queries |
 | **CISA KEV** | 1,100+ actively exploited CVEs | Overlay during sync |
+| **FIRST.org EPSS** | Exploit probability scores (0-100%) | `epss-sync` command or during `cve-sync` |
 
 ### CPE Coverage
 
@@ -404,8 +423,9 @@ The scanner syncs CVEs for 49 CPE (Common Platform Enumeration) strings covering
 SkyHigh Scanner generates interactive HTML reports with:
 
 - **Dark theme** with platform-specific accent colors
-- **Summary cards** -- total findings, severity breakdown, scan metadata
+- **Summary cards** -- total findings, severity breakdown, EPSS high-risk count, scan metadata
 - **Severity-colored finding cards** -- CRITICAL (red), HIGH (orange), MEDIUM (yellow), LOW (blue), INFO (gray)
+- **EPSS badges** -- Color-coded exploit probability: red (>=50%), orange (>=10%), green (<10%)
 - **CISA KEV badges** -- Pulse animation for actively exploited vulnerabilities
 - **JavaScript filtering** -- Filter by severity, category, or search text
 - **Print-friendly CSS** -- Clean output when printed to PDF
@@ -431,7 +451,7 @@ SKYHIGH-SCANNER/
 ├── .github/workflows/
 │   └── ci.yml                    # GitHub Actions CI (test, lint, seed validation)
 │
-├── tests/                        # Test suite (166 tests)
+├── tests/                        # Test suite (190 tests)
 │   ├── conftest.py               # Shared fixtures
 │   ├── test_version_utils.py     # Version parsing & range matching (20 tests)
 │   ├── test_ip_utils.py          # IP range expansion & DNS (16 tests)
@@ -441,6 +461,7 @@ SKYHIGH-SCANNER/
 │   ├── test_cve_database.py      # SQLite import, lookup, KEV flagging (14 tests)
 │   ├── test_reporting.py         # HTML generation & XSS escaping (11 tests)
 │   ├── test_seed_validation.py   # Seed file integrity & dedup (12 tests)
+│   ├── test_epss.py              # EPSS integration end-to-end (27 tests)
 │   └── test_cli.py               # CLI argument parsing (25 tests)
 │
 └── skyhigh_scanner/              # Main package
@@ -531,9 +552,10 @@ pytest tests/test_seed_validation.py -v
 | `core/version_utils.py` | 20 | 94% |
 | `core/scanner_base.py` | 17 | 93% |
 | `core/cve_database.py` | 14 | 85% |
+| EPSS integration | 27 | N/A (cross-module) |
 | Seed file validation | 12 | N/A |
 | CLI argument parsing | 25 | N/A |
-| **Total** | **166** | |
+| **Total** | **190** | |
 
 ### CI Pipeline
 
@@ -565,7 +587,7 @@ Contributions are welcome! Here's how to get started:
 2. **Create** a feature branch: `git checkout -b feature/my-feature`
 3. **Install** dev dependencies: `pip install -r requirements-dev.txt`
 4. **Make** your changes
-5. **Run tests**: `pytest` -- all 166 tests must pass
+5. **Run tests**: `pytest` -- all 190 tests must pass
 6. **Lint**: `ruff check skyhigh_scanner/ tests/`
 7. **Commit**: `git commit -m "Add my feature"`
 8. **Push**: `git push origin feature/my-feature`

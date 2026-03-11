@@ -12,6 +12,7 @@ Usage:
     python -m skyhigh_scanner cve-sync   [--api-key KEY] [--since 2010]
     python -m skyhigh_scanner cve-import [--seed-dir DIR]
     python -m skyhigh_scanner cve-stats
+    python -m skyhigh_scanner epss-sync  [-v]
 """
 
 from __future__ import annotations
@@ -42,6 +43,7 @@ CVE management:
   cve-sync    Sync CVE database from NVD API
   cve-import  Import seed CVE data for offline use
   cve-stats   Show CVE database statistics
+  epss-sync   Fetch/update EPSS scores from FIRST.org API
         """,
     )
     parser.add_argument("--version", action="version", version=f"SkyHigh Scanner v{VERSION}")
@@ -71,6 +73,9 @@ CVE management:
     cve_import.add_argument("-v", "--verbose", action="store_true")
 
     cve_stats = sub.add_parser("cve-stats", help="Show CVE database statistics")
+
+    epss_sync = sub.add_parser("epss-sync", help="Fetch/update EPSS scores from FIRST.org API")
+    epss_sync.add_argument("-v", "--verbose", action="store_true")
 
     return parser
 
@@ -317,10 +322,14 @@ def _run_cve_sync(args) -> int:
             results = sync.sync_all(since_year=args.since)
 
     total = sum(v for k, v in results.items() if not k.startswith("_"))
-    print(f"\n[*] Sync complete: {total} CVEs across {len(results)-1} platforms")
+    internal_keys = sum(1 for k in results if k.startswith("_"))
+    print(f"\n[*] Sync complete: {total} CVEs across {len(results) - internal_keys} platforms")
     kev = results.get("_cisa_kev_flagged", 0)
     if kev:
         print(f"[*] CISA KEV: {kev} actively exploited CVEs flagged")
+    epss = results.get("_epss_enriched", 0)
+    if epss:
+        print(f"[*] EPSS: {epss} CVEs enriched with exploit probability scores")
     return 0
 
 
@@ -331,6 +340,18 @@ def _run_cve_import(args) -> int:
         count = db.import_seed(args.seed_dir)
 
     print(f"[*] Imported {count} CVEs from seed files")
+    return 0
+
+
+def _run_epss_sync(args) -> int:
+    from .core.cve_database import CVEDatabase
+    from .core.cve_sync import CVESync
+
+    with CVEDatabase() as db:
+        sync = CVESync(db, verbose=args.verbose)
+        count = sync.sync_epss()
+
+    print(f"\n[*] EPSS sync complete: {count} CVEs enriched with exploit probability scores")
     return 0
 
 
@@ -351,8 +372,11 @@ def _run_cve_stats(_args) -> int:
     print(f"\n{'='*50}")
     print(f"  SkyHigh Scanner - CVE Database Statistics")
     print(f"{'='*50}")
-    print(f"  Total CVEs : {stats.get('total', 0)}")
-    print(f"  CISA KEV   : {stats.get('kev', 0)}")
+    print(f"  Total CVEs      : {stats.get('total', 0)}")
+    print(f"  CISA KEV        : {stats.get('kev', 0)}")
+    print(f"  EPSS Populated  : {stats.get('epss_populated', 0)}")
+    print(f"  EPSS Avg Score  : {stats.get('epss_avg', 0.0):.2%}")
+    print(f"  EPSS High Risk  : {stats.get('epss_high_risk', 0)} (score >= 50%)")
     print(f"{'-'*50}")
     for platform, count in sorted(stats.get("platforms", {}).items()):
         print(f"  {platform:30s}: {count}")
@@ -375,6 +399,8 @@ def main() -> int:
         return _run_cve_import(args)
     elif args.command == "cve-stats":
         return _run_cve_stats(args)
+    elif args.command == "epss-sync":
+        return _run_epss_sync(args)
     else:
         return _run_scan(args)
 

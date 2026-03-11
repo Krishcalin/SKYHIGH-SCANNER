@@ -61,7 +61,7 @@ skyhigh_scanner/
 │   └── seed/                   # 21 seed JSON files (451 CVEs)
 └── templates/           # HTML report templates
 
-tests/                   # 166 pytest tests
+tests/                   # 190 pytest tests
 ├── conftest.py                # Shared fixtures
 ├── test_version_utils.py      # 20 tests
 ├── test_ip_utils.py           # 16 tests
@@ -71,6 +71,7 @@ tests/                   # 166 pytest tests
 ├── test_cve_database.py       # 14 tests
 ├── test_reporting.py          # 11 tests
 ├── test_seed_validation.py    # 12 tests
+├── test_epss.py               # 27 tests (EPSS integration)
 └── test_cli.py                # 25 tests
 ```
 
@@ -83,13 +84,14 @@ python -m skyhigh_scanner cisco      -r 10.1.1.0/24       # Cisco devices
 python -m skyhigh_scanner webserver  --target https://...  # Web servers
 python -m skyhigh_scanner middleware -r 10.0.0.0/24        # Middleware
 python -m skyhigh_scanner database   -r 10.0.0.0/24        # Databases
-python -m skyhigh_scanner cve-sync   --api-key KEY         # Sync NVD API
+python -m skyhigh_scanner cve-sync   --api-key KEY         # Sync NVD API + EPSS + KEV
 python -m skyhigh_scanner cve-import                        # Import seed CVEs
-python -m skyhigh_scanner cve-stats                         # Show CVE stats
+python -m skyhigh_scanner cve-stats                         # Show CVE + EPSS stats
+python -m skyhigh_scanner epss-sync                         # Update EPSS scores from FIRST.org
 ```
 
 ### Key Patterns
-- **Finding dataclass**: `rule_id, name, category, severity, file_path, line_num, line_content, description, recommendation, cwe, cve, target_type`
+- **Finding dataclass**: `rule_id, name, category, severity, file_path, line_num, line_content, description, recommendation, cwe, cve, target_type, cvss, cisa_kev, epss`
 - **Version matching**: `version_in_range(ver, ">=2.4.0,<2.4.52")` handles comma-separated conditions
 - **Embedded CVE lists**: Scanner modules have hardcoded CVE dicts for fast offline matching
 - **Seed JSON schema**: `{"cve_id", "platform", "severity", "cvss_v3", "cwe", "published", "name", "description", "recommendation", "cisa_kev", "epss_score", "affected"}`
@@ -102,6 +104,7 @@ python -m skyhigh_scanner cve-stats                         # Show CVE stats
 - **146 CISA KEV** flagged entries
 - **SQLite** backend at `skyhigh_scanner/cve_data/skyhigh_scanner.db`
 - **NVD API 2.0** sync with rate limiting (6s without key, 0.6s with key)
+- **EPSS scores** from FIRST.org API — exploit probability (0-100%) for each CVE
 - **Vendor feeds**: MSRC, Cisco PSIRT, Ubuntu USN, Red Hat RHSA (stubs)
 
 ### Seed Files (21 files, 451 unique CVEs)
@@ -157,10 +160,23 @@ python -m skyhigh_scanner cve-stats                         # Show CVE stats
 - **New files**: `requirements-dev.txt`, `pyproject.toml`, `.github/workflows/ci.yml`, 9 test files + conftest
 - **Known limitation**: `parse_ver()` strips non-numeric suffixes (e.g. OpenSSL `1.0.1f` → `(1,0,1)`), so letter-based version ranges don't work — seed data should use numeric ranges
 
+### Phase 4 — EPSS Integration
+- **EPSS data flow**: DB → Finding → Console/HTML/JSON/CSV (was broken, now fully connected)
+- **FIRST.org API**: `CVESync.sync_epss()` fetches scores in batches of 100 CVEs
+- **`epss-sync` CLI command**: Standalone EPSS enrichment for existing CVE databases
+- **HTML report**: Color-coded EPSS badges (red >=50%, orange >=10%, green <10%) + dashboard card
+- **Console report**: EPSS percentage shown per finding + high-risk summary count
+- **CSV export**: `epss` column added to output
+- **NVD sync preservation**: `cve-sync` no longer overwrites existing EPSS/KEV data with NULL
+- **`enrich_epss()`**: Bulk update method on CVEDatabase
+- **`flag_epss_findings()`**: Post-scan enrichment for findings from non-DB sources
+- **27 new tests** in `test_epss.py` covering all integration points
+- **Stats**: `cve-stats` now shows EPSS population count, average score, high-risk count
+
 ## Testing
 ```bash
 pip install -r requirements-dev.txt    # pytest, pytest-cov, ruff, mypy
-pytest                                  # Run all 166 tests
+pytest                                  # Run all 190 tests
 pytest --cov=skyhigh_scanner.core       # With coverage
 pytest tests/test_seed_validation.py    # Seed integrity only
 ruff check skyhigh_scanner/ tests/      # Lint
@@ -177,6 +193,7 @@ ruff check skyhigh_scanner/ tests/      # Lint
 | `tests/test_cve_database.py` | 14 | SQLite schema, seed import, version lookup, KEV, stats |
 | `tests/test_reporting.py` | 11 | HTML generation, themes, XSS escaping |
 | `tests/test_seed_validation.py` | 12 | JSON schema, CVE format, CVSS/EPSS ranges, dedup |
+| `tests/test_epss.py` | 27 | EPSS flow: DB→Finding, enrichment, HTML/console/CSV, API mock |
 | `tests/test_cli.py` | 25 | All argparse subcommands, flags, defaults |
 
 ### CI Pipeline (`.github/workflows/ci.yml`)

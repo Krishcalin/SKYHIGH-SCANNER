@@ -261,6 +261,7 @@ class CVEDatabase:
                     cve=row["cve_id"],
                     cvss=row["cvss_v3"],
                     cisa_kev=bool(row["cisa_kev"]),
+                    epss=row["epss_score"],
                     fix_version=row["fix_version"],
                     fix_kb=row["fix_kb"],
                     advisory=row["fix_advisory"],
@@ -303,6 +304,7 @@ class CVEDatabase:
                     cve=row["cve_id"],
                     cvss=row["cvss_v3"],
                     cisa_kev=bool(row["cisa_kev"]),
+                    epss=row["epss_score"],
                     fix_version=fixed,
                 ))
 
@@ -329,6 +331,48 @@ class CVEDatabase:
                 count += 1
         return count
 
+    # ── EPSS enrichment ─────────────────────────────────────────────
+    def enrich_epss(self, epss_map: dict[str, float]) -> int:
+        """Bulk-update EPSS scores for CVEs in the database.
+
+        Args:
+            epss_map: Dict of {cve_id: epss_score}.
+
+        Returns:
+            Number of CVEs updated.
+        """
+        if not self.conn or not epss_map:
+            return 0
+
+        cur = self.conn.cursor()
+        count = 0
+        for cve_id, score in epss_map.items():
+            cur.execute("UPDATE cves SET epss_score = ? WHERE cve_id = ?",
+                        (score, cve_id))
+            count += cur.rowcount
+        self.conn.commit()
+        return count
+
+    def flag_epss_findings(self, findings: List[Finding]) -> int:
+        """Enrich findings with EPSS scores from the database.
+
+        Returns:
+            Number of findings enriched.
+        """
+        if not self.conn:
+            return 0
+
+        cur = self.conn.cursor()
+        cur.execute("SELECT cve_id, epss_score FROM cves WHERE epss_score IS NOT NULL")
+        epss_map = {row["cve_id"]: row["epss_score"] for row in cur.fetchall()}
+
+        count = 0
+        for f in findings:
+            if f.cve and f.cve in epss_map and f.epss is None:
+                f.epss = epss_map[f.cve]
+                count += 1
+        return count
+
     # ── Statistics ───────────────────────────────────────────────────
     def stats(self) -> dict:
         """Return CVE counts per platform."""
@@ -345,4 +389,18 @@ class CVEDatabase:
         cur.execute("SELECT COUNT(*) as cnt FROM cves WHERE cisa_kev = 1")
         kev = cur.fetchone()["cnt"]
 
-        return {"total": total, "kev": kev, "platforms": platform_counts}
+        cur.execute("SELECT COUNT(*) as cnt FROM cves WHERE epss_score IS NOT NULL")
+        epss_count = cur.fetchone()["cnt"]
+
+        cur.execute("SELECT AVG(epss_score) as avg_epss FROM cves WHERE epss_score IS NOT NULL")
+        avg_epss = cur.fetchone()["avg_epss"]
+
+        cur.execute("SELECT COUNT(*) as cnt FROM cves WHERE epss_score >= 0.5")
+        epss_high = cur.fetchone()["cnt"]
+
+        return {
+            "total": total, "kev": kev, "platforms": platform_counts,
+            "epss_populated": epss_count,
+            "epss_avg": round(avg_epss, 4) if avg_epss else 0.0,
+            "epss_high_risk": epss_high,
+        }
