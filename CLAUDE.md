@@ -25,12 +25,17 @@ skyhigh_scanner/
 │   ├── discovery.py            # IP range scanning + service fingerprinting
 │   ├── finding.py              # Finding dataclass
 │   ├── ip_utils.py             # CIDR/range parsing
-│   ├── reporting.py            # HTML/JSON report generation
+│   ├── reporting.py            # HTML/PDF report generation + Chart.js dashboard
 │   ├── scanner_base.py         # Base scanner class
 │   ├── transport.py            # SSH/WinRM/HTTP/SNMP transports
-│   └── version_utils.py        # parse_ver(), version_in_range()
+│   ├── version_utils.py        # parse_ver(), version_in_range()
+│   ├── compliance.py           # CWE/category → NIST/ISO/PCI/CIS mapping
+│   ├── config.py               # YAML/TOML config file loader
+│   ├── baseline.py             # Diff scanning (NEW/FIXED/UNCHANGED)
+│   ├── scan_profiles.py        # quick/standard/full/compliance/cve-only profiles
+│   └── plugin_registry.py      # @scanner_plugin decorator + auto-discovery
 ├── scanners/            # Platform scanner orchestrators
-│   ├── auto_scanner.py         # Auto-discovery + dispatch
+│   ├── auto_scanner.py         # Auto-discovery + parallel dispatch (v1.2.0)
 │   ├── cisco_scanner.py        # Cisco IOS/IOS-XE/NX-OS (SSH/SNMP)
 │   ├── database_scanner.py     # Oracle DB, MySQL, MongoDB dispatcher
 │   ├── linux_scanner.py        # Linux (SSH)
@@ -38,10 +43,10 @@ skyhigh_scanner/
 │   ├── webserver_scanner.py    # Web server dispatcher (HTTP probing)
 │   └── windows_scanner.py      # Windows (WinRM/SMB)
 ├── webservers/          # Web server check modules
-│   ├── apache_checks.py        # APACHE_CVES (12), ServerTokens, dir listing
-│   ├── iis_checks.py           # IIS_CVE_VERSIONS (8), headers, WebDAV
+│   ├── apache_checks.py        # APACHE_CVES (13), ServerTokens, dir listing
+│   ├── iis_checks.py           # IIS_CVE_VERSIONS (10), headers, WebDAV
 │   ├── nginx_checks.py         # NGINX_CVES (10), server_tokens, stub_status
-│   ├── tomcat_checks.py        # TOMCAT_CVES (12), default creds, AJP
+│   ├── tomcat_checks.py        # TOMCAT_CVES (13), default creds, AJP
 │   ├── weblogic_checks.py      # WEBLOGIC_CVES (15), T3/IIOP, console
 │   └── websphere_checks.py     # WEBSPHERE_CVES (8), admin console, SOAP
 ├── middleware/          # Middleware/runtime check modules
@@ -57,11 +62,13 @@ skyhigh_scanner/
 │   └── oracle_db_checks.py     # TNS, audit, password policy
 ├── benchmarks/          # CIS benchmark check scripts
 ├── cve_data/
-│   ├── cpe_mappings.json       # 49 CPE strings for NVD sync
-│   └── seed/                   # 21 seed JSON files (451 CVEs)
+│   ├── cpe_mappings.json       # 47 CPE strings for NVD sync
+│   └── seed/                   # 21 seed JSON files (510 CVEs, 159 CISA KEV)
+├── plugins/             # Auto-discovered plugin directory
+│   └── example_scanner.py      # Example plugin template
 └── templates/           # HTML report templates
 
-tests/                   # 269 pytest tests
+tests/                   # 521 pytest tests (all passing, 0 skipped)
 ├── conftest.py                # Shared fixtures
 ├── test_version_utils.py      # 20 tests
 ├── test_ip_utils.py           # 16 tests
@@ -69,13 +76,18 @@ tests/                   # 269 pytest tests
 ├── test_credential_manager.py # 18 tests
 ├── test_scanner_base.py       # 17 tests
 ├── test_cve_database.py       # 14 tests
-├── test_reporting.py          # 11 tests
+├── test_reporting.py          # 49 tests (HTML/PDF, charts, XSS escaping)
 ├── test_seed_validation.py    # 12 tests
 ├── test_epss.py               # 27 tests (EPSS integration)
 ├── test_cli.py                # 25 tests
 ├── test_incremental_sync.py   # 23 tests (incremental CVE sync)
 ├── test_compliance.py         # 53 tests (compliance framework mapping)
-└── (3 skipped without requests)
+├── test_sarif.py              # 30 tests (SARIF v2.1.0 export)
+├── test_plugins.py            # 26 tests (plugin architecture)
+├── test_scan_profiles.py      # 36 tests (scan profiles & category gating)
+├── test_auto_scanner.py       # 67 tests (auto scanner & parallel dispatch)
+├── test_config.py             # 30 tests (config file loading)
+└── test_baseline.py           # 20 tests (baseline diff scanning)
 ```
 
 ### CLI Commands
@@ -105,16 +117,23 @@ python -m skyhigh_scanner epss-sync                         # Update EPSS scores
 - **Rule ID formats**: `WEB-APACHE-001`, `CISCO-AUTH-001`, `DB-MONGO-NET-001`, `MW-JAVA-VER-001`
 - **Compliance mapping**: `compliance.py` maps CWE IDs + categories to NIST 800-53, ISO 27001, PCI DSS 4.0, CIS Controls v8
 - **`--compliance` flag**: Enriches findings with framework controls; shown in console, HTML, JSON, CSV
+- **SARIF v2.1.0 export**: `--sarif FILE` — GitHub Code Scanning / VS Code compatible
+- **Plugin architecture**: `@scanner_plugin` decorator, auto-discovery from `plugins/` dir + `--plugin-dir` + entry-points
+- **Scan profiles**: `--profile quick|standard|full|compliance|cve-only` — category-based gating
+- **Parallel scanning**: Auto Scanner v1.2.0 uses ThreadPoolExecutor for multi-host dispatch
+- **Config files**: `--config FILE` or auto-discover `skyhigh-scanner.yml/.yaml/.toml`, CLI always overrides
+- **Baseline diff**: `--baseline FILE` compares current vs previous JSON scan (NEW/FIXED/UNCHANGED)
+- **PDF export**: `--pdf FILE` via optional weasyprint, print-optimised white-bg layout
 
 ## CVE Database
-- **451 curated CVEs** across 21 seed files, 35 platforms (deduplicated in Phase 3)
-- **146 CISA KEV** flagged entries
+- **510 curated CVEs** across 21 seed files, 35 platforms (deduplicated in Phase 3)
+- **159 CISA KEV** flagged entries
 - **SQLite** backend at `skyhigh_scanner/cve_data/skyhigh_scanner.db`
 - **NVD API 2.0** sync with rate limiting (6s without key, 0.6s with key)
 - **EPSS scores** from FIRST.org API — exploit probability (0-100%) for each CVE
 - **Vendor feeds**: MSRC, Cisco PSIRT, Ubuntu USN, Red Hat RHSA (stubs)
 
-### Seed Files (21 files, 451 unique CVEs)
+### Seed Files (21 files, 510 unique CVEs)
 | File | CVEs | Platforms |
 |------|------|-----------|
 | windows_os_cves_seed.json | 39 | windows, exchange_server |
@@ -204,10 +223,57 @@ python -m skyhigh_scanner epss-sync                         # Update EPSS scores
 - **`compliance_summary()`**: Aggregate control counts across all findings
 - **53 new tests** in `test_compliance.py`
 
+### Phase 7 — SARIF v2.1.0 Export
+- **`save_sarif()`** on ScannerBase: GitHub Code Scanning / VS Code compatible
+- Includes fingerprints, CWE tags, CVSS security-severity, severity→level mapping
+- **`--sarif FILE`** CLI flag on all scan commands
+- **30 new tests** in `test_sarif.py`
+
+### Phase 8 — Plugin Architecture
+- **`@scanner_plugin` decorator** with name, version, description metadata
+- **Auto-discovery** from `plugins/` dir + `--plugin-dir` + entry-points
+- **Validates** ScannerBase inheritance, rejects builtin command conflicts
+- **`PluginInfo` dataclass** with registration metadata
+- **26 new tests** in `test_plugins.py`
+
+### Phase 9 — Scan Profiles
+- **5 profiles**: quick (HIGH+ only), standard, full, compliance, cve-only
+- **Category-based gating** via `_check_enabled()` in ScannerBase
+- **Severity floor override**: quick profile raises minimum to HIGH
+- **Profile info** in summary banner and JSON/HTML output
+- **36 new tests** in `test_scan_profiles.py`
+
+### Phase 10 — Auto Scanner v1.2.0 (Parallel Dispatch)
+- **ThreadPoolExecutor** for multi-host parallel scanning
+- **`_create_scanner()` / `_dispatch_one()`** for thread-safe dispatch
+- **`threading.Lock`** protects shared findings list
+- **Sequential fallback** when `threads <= 1` or single dispatch
+- **Progress reporting** and credential-missing warnings
+- **67 new tests** in `test_auto_scanner.py`
+
+### Phase 11 — Config File Support
+- **`--config FILE`** or auto-discover `skyhigh-scanner.yml/.yaml/.toml`
+- **Built-in YAML parser** (no PyYAML dependency needed)
+- **Key validation** against `_VALID_KEYS` frozenset
+- **CLI always overrides** config file values
+- **30 new tests** in `test_config.py`
+
+### Phase 12 — Baseline / Diff Scanning
+- **`--baseline FILE`** compares current scan vs previous JSON export
+- **Finding identity**: `(rule_id, file_path, line_content)` composite key
+- **Diff output**: NEW, FIXED, UNCHANGED with colored stderr report
+- **20 new tests** in `test_baseline.py`
+
+### Phase 13 — CVE Seed Expansion & Test Fixes
+- Expanded seed CVEs from 457 to 510 (8 seed files updated)
+- Fixed 26 skipped tests: installed `requests`, mocked `weasyprint`
+- **521 tests all passing, 0 skipped**
+
 ## Testing
 ```bash
 pip install -r requirements-dev.txt    # pytest, pytest-cov, ruff, mypy
-pytest                                  # Run all 269 tests
+pip install requests                    # Required for EPSS/sync tests
+pytest                                  # Run all 521 tests
 pytest --cov=skyhigh_scanner.core       # With coverage
 pytest tests/test_seed_validation.py    # Seed integrity only
 ruff check skyhigh_scanner/ tests/      # Lint
@@ -222,12 +288,18 @@ ruff check skyhigh_scanner/ tests/      # Lint
 | `tests/test_credential_manager.py` | 18 | Setters, has_*, summary, file/env loading |
 | `tests/test_scanner_base.py` | 17 | `_add`, filter, summary, timing, exit code, JSON/CSV export |
 | `tests/test_cve_database.py` | 14 | SQLite schema, seed import, version lookup, KEV, stats |
-| `tests/test_reporting.py` | 11 | HTML generation, themes, XSS escaping |
+| `tests/test_reporting.py` | 49 | HTML/PDF generation, charts, dashboard, XSS escaping |
 | `tests/test_seed_validation.py` | 12 | JSON schema, CVE format, CVSS/EPSS ranges, dedup |
 | `tests/test_epss.py` | 27 | EPSS flow: DB→Finding, enrichment, HTML/console/CSV, API mock |
 | `tests/test_cli.py` | 25 | All argparse subcommands, flags, defaults |
 | `tests/test_incremental_sync.py` | 23 | Incremental sync, date windows, platform filter, metadata |
 | `tests/test_compliance.py` | 53 | CWE/category mapping, enrichment, filter, format, HTML/CSV/JSON |
+| `tests/test_sarif.py` | 30 | SARIF v2.1.0 export, fingerprints, CWE tags, severity mapping |
+| `tests/test_plugins.py` | 26 | Plugin decorator, discovery, validation, ScannerBase check |
+| `tests/test_scan_profiles.py` | 36 | Profile definitions, category gating, severity floor |
+| `tests/test_auto_scanner.py` | 67 | Auto scanner, parallel dispatch, thread safety, progress |
+| `tests/test_config.py` | 30 | YAML/TOML parsing, find_config, merge_config, key validation |
+| `tests/test_baseline.py` | 20 | Finding keys, load baseline, compute diff, diff summary |
 
 ### CI Pipeline (`.github/workflows/ci.yml`)
 - **test**: Matrix Python 3.9, 3.10, 3.11, 3.12 — `pytest --cov`
@@ -244,5 +316,5 @@ ruff check skyhigh_scanner/ tests/      # Lint
 
 ## Dependencies
 - **Required**: Python 3.9+ (stdlib only for core)
-- **Optional**: `requests` (CVE sync, HTTP probing), `paramiko` (SSH), `pysnmp-lextudio` (SNMP), `pywinrm` (WinRM), `impacket` (SMB)
-- **Dev/Test**: `pytest`, `pytest-cov`, `ruff`, `mypy` (see `requirements-dev.txt`)
+- **Optional runtime**: `requests` (CVE sync, HTTP probing), `paramiko` (SSH), `netmiko` (Cisco SSH), `pysnmp-lextudio` (SNMP), `pywinrm` (WinRM), `impacket` (SMB), `weasyprint` (PDF reports)
+- **Dev/Test**: `pytest`, `pytest-cov`, `ruff`, `mypy`, `requests` (see `requirements-dev.txt`)

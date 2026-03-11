@@ -13,7 +13,7 @@
   <a href="#supported-platforms"><img src="https://img.shields.io/badge/platforms-23-orange.svg" alt="23 Platforms" /></a>
   <a href="#cve-database"><img src="https://img.shields.io/badge/CVEs-32%2C000+-red.svg" alt="32,000+ CVEs" /></a>
   <a href="#features"><img src="https://img.shields.io/badge/rules-~800-purple.svg" alt="~800 Rules" /></a>
-  <a href="#testing"><img src="https://img.shields.io/badge/tests-269_passing-brightgreen.svg" alt="269 Tests" /></a>
+  <a href="#testing"><img src="https://img.shields.io/badge/tests-521_passing-brightgreen.svg" alt="521 Tests" /></a>
 </p>
 
 ---
@@ -49,8 +49,16 @@ Unlike static analysis tools, SkyHigh Scanner actively queries running systems �
 - **Auto-discovery** — Scans IP ranges, fingerprints services, classifies hosts, and dispatches the right scanner
 - **~800 security rules** across 21 check modules
 - **32,000+ CVEs** via NVD API 2.0 sync (2010-2025) with CISA KEV + EPSS overlay
+- **510 bundled seed CVEs** with 159 CISA KEV entries for offline scanning
 - **6 CIS benchmarks** — Windows, Linux, Cisco, Oracle DB, MySQL, MongoDB
-- **Interactive HTML reports** — Dark theme, JS filtering, severity-colored cards, print-friendly
+- **Interactive HTML reports** — Dark theme, Chart.js dashboard, JS filtering, PDF export
+- **SARIF v2.1.0 export** — GitHub Code Scanning and VS Code compatible
+- **Plugin architecture** — Extend with custom scanners via `@scanner_plugin` decorator
+- **Scan profiles** — quick, standard, full, compliance, cve-only presets
+- **Parallel scanning** — ThreadPoolExecutor-based multi-host dispatch
+- **Config files** — YAML/TOML configuration with CLI override precedence
+- **Baseline diff scanning** — Track NEW/FIXED/UNCHANGED findings across scans
+- **Compliance mapping** — NIST 800-53, ISO 27001, PCI DSS v4.0, CIS Controls v8
 - **Graceful degradation** — All transport dependencies are optional; missing libraries are handled cleanly
 
 ---
@@ -68,7 +76,11 @@ Unlike static analysis tools, SkyHigh Scanner actively queries running systems �
 | **Network Discovery** | TCP port scanning, banner grabbing, OS classification |
 | **Compliance Mapping** | NIST SP 800-53, ISO 27001:2022, PCI DSS v4.0, CIS Controls v8 |
 | **Credential Management** | CLI args, environment variables, or credential files |
-| **Reporting** | Console (colored), JSON, CSV, interactive HTML with compliance tags |
+| **Reporting** | Console (colored), JSON, CSV, SARIF, interactive HTML, PDF |
+| **Scan Profiles** | quick, standard, full, compliance, cve-only presets |
+| **Plugins** | Extensible scanner architecture with auto-discovery |
+| **Baseline Diff** | Track new, fixed, and unchanged findings across scans |
+| **Config Files** | YAML/TOML config with built-in parser (no PyYAML needed) |
 
 ---
 
@@ -156,7 +168,12 @@ Unlike static analysis tools, SkyHigh Scanner actively queries running systems �
 | `NetworkDiscovery` | `core/discovery.py` | Host probe, port scan, service fingerprint, OS classification |
 | `CVEDatabase` | `core/cve_database.py` | SQLite-backed CVE storage with version matching |
 | `CVESync` | `core/cve_sync.py` | NVD API 2.0 sync, CISA KEV overlay, vendor feeds |
-| `Reporting` | `core/reporting.py` | Interactive HTML report generation |
+| `Reporting` | `core/reporting.py` | HTML/PDF report generation with Chart.js dashboard |
+| `Compliance` | `core/compliance.py` | CWE/category → NIST/ISO/PCI/CIS mapping engine |
+| `Config` | `core/config.py` | YAML/TOML config file loader with built-in parser |
+| `Baseline` | `core/baseline.py` | Diff scanning — compare current vs previous scan |
+| `ScanProfiles` | `core/scan_profiles.py` | Scan profile definitions and category gating |
+| `PluginRegistry` | `core/plugin_registry.py` | Plugin discovery, registration, and validation |
 
 ---
 
@@ -220,7 +237,7 @@ pip install -r requirements.txt
 python -m skyhigh_scanner cve-import
 ```
 
-This loads 451 curated CVEs (146 CISA KEV flagged) from the bundled seed files.
+This loads 510 curated CVEs (159 CISA KEV flagged) from the bundled seed files.
 
 ### 2. Check CVE Database Stats
 
@@ -299,8 +316,16 @@ Commands:
 | `-u, --username` | Authentication username |
 | `-p, --password` | Authentication password |
 | `--severity` | Minimum severity filter: `CRITICAL`, `HIGH`, `MEDIUM`, `LOW`, `INFO` |
+| `--profile` | Scan profile: `quick`, `standard`, `full`, `compliance`, `cve-only` |
+| `--config FILE` | YAML/TOML config file (auto-discovers `skyhigh-scanner.yml` if omitted) |
+| `--baseline FILE` | Compare against previous JSON scan for diff reporting |
+| `--threads N` | Number of parallel scan threads (default: 4) |
+| `--compliance` | Enrich findings with compliance framework mappings |
 | `--json FILE` | Save findings to JSON file |
 | `--html FILE` | Save findings to interactive HTML report |
+| `--csv FILE` | Save findings to CSV file |
+| `--sarif FILE` | Save findings to SARIF v2.1.0 (GitHub Code Scanning compatible) |
+| `--pdf FILE` | Save findings to PDF report (requires `weasyprint`) |
 | `-v, --verbose` | Enable verbose output |
 | `--version` | Show scanner version |
 
@@ -380,14 +405,14 @@ SkyHigh Scanner maintains a local SQLite database of CVEs for offline version-ba
 
 | Source | Coverage | Method |
 |--------|----------|--------|
-| **Seed files** | 451 curated CVEs (bundled, 21 files) | `cve-import` command |
-| **NVD API 2.0** | ~32,000 CVEs (2010-2025) | `cve-sync` command, 49 CPE queries |
+| **Seed files** | 510 curated CVEs (bundled, 21 files) | `cve-import` command |
+| **NVD API 2.0** | ~32,000 CVEs (2010-2025) | `cve-sync` command, 47 CPE queries |
 | **CISA KEV** | 1,100+ actively exploited CVEs | Overlay during sync |
 | **FIRST.org EPSS** | Exploit probability scores (0-100%) | `epss-sync` command or during `cve-sync` |
 
 ### CPE Coverage
 
-The scanner syncs CVEs for 49 CPE (Common Platform Enumeration) strings covering:
+The scanner syncs CVEs for 47 CPE (Common Platform Enumeration) strings covering:
 
 - Microsoft Windows (Server 2008-2022, Desktop 7-11)
 - Linux distributions (Ubuntu, RHEL, CentOS, Debian, SUSE)
@@ -464,20 +489,51 @@ python -m skyhigh_scanner cisco -r 10.1.1.0/24 --compliance --html report.html -
 
 ---
 
-## HTML Reports
+## Reports & Exports
+
+### Interactive HTML Reports
 
 SkyHigh Scanner generates interactive HTML reports with:
 
 - **Dark theme** with platform-specific accent colors
+- **Chart.js dashboard** -- Severity doughnut, EPSS distribution, category bar, top targets bar charts
 - **Summary cards** -- total findings, severity breakdown, EPSS high-risk count, scan metadata
 - **Severity-colored finding cards** -- CRITICAL (red), HIGH (orange), MEDIUM (yellow), LOW (blue), INFO (gray)
 - **EPSS badges** -- Color-coded exploit probability: red (>=50%), orange (>=10%), green (<10%)
 - **CISA KEV badges** -- Pulse animation for actively exploited vulnerabilities
-- **JavaScript filtering** -- Filter by severity, category, or search text
-- **Print-friendly CSS** -- Clean output when printed to PDF
+- **JavaScript filtering** -- Filter by severity, category, target, or free-text search
+- **Compliance tags** -- NIST, ISO, PCI DSS, CIS control references per finding
+- **Print-friendly CSS** -- Charts hidden, clean layout for printing
 - **Self-contained** -- Single HTML file, no external dependencies
 
-Generate an HTML report by adding `--html report.html` to any scan command.
+### PDF Reports
+
+Print-optimised reports via optional `weasyprint` dependency:
+- White background, A4 pages, all findings expanded
+- Executive summary with severity breakdown
+- Same data as HTML but formatted for offline distribution
+
+### SARIF Export
+
+SARIF v2.1.0 output for CI/CD integration:
+- GitHub Code Scanning compatible
+- VS Code SARIF Viewer compatible
+- Includes fingerprints, CWE tags, CVSS security-severity
+- Severity-to-level mapping (CRITICAL/HIGH → error, MEDIUM → warning, LOW/INFO → note)
+
+### Baseline Diff Scanning
+
+Compare scans against a previous baseline to track remediation progress:
+
+```bash
+# Create a baseline
+python -m skyhigh_scanner linux -r 10.0.0.0/24 --json baseline.json
+
+# Compare against baseline
+python -m skyhigh_scanner linux -r 10.0.0.0/24 --baseline baseline.json
+```
+
+Output shows NEW findings (not in baseline), FIXED findings (resolved), and UNCHANGED findings.
 
 ---
 
@@ -497,7 +553,7 @@ SKYHIGH-SCANNER/
 ├── .github/workflows/
 │   └── ci.yml                    # GitHub Actions CI (test, lint, seed validation)
 │
-├── tests/                        # Test suite (269 tests)
+├── tests/                        # Test suite (521 tests)
 │   ├── conftest.py               # Shared fixtures
 │   ├── test_version_utils.py     # Version parsing & range matching (20 tests)
 │   ├── test_ip_utils.py          # IP range expansion & DNS (16 tests)
@@ -505,12 +561,18 @@ SKYHIGH-SCANNER/
 │   ├── test_credential_manager.py # Credential loading & env vars (18 tests)
 │   ├── test_scanner_base.py      # Base scanner, filtering, export (17 tests)
 │   ├── test_cve_database.py      # SQLite import, lookup, KEV flagging (14 tests)
-│   ├── test_reporting.py         # HTML generation & XSS escaping (11 tests)
+│   ├── test_reporting.py         # HTML/PDF generation, charts, XSS escaping (49 tests)
 │   ├── test_seed_validation.py   # Seed file integrity & dedup (12 tests)
 │   ├── test_epss.py              # EPSS integration end-to-end (27 tests)
 │   ├── test_cli.py               # CLI argument parsing (25 tests)
 │   ├── test_incremental_sync.py  # Incremental CVE sync (23 tests)
-│   └── test_compliance.py       # Compliance framework mapping (53 tests)
+│   ├── test_compliance.py        # Compliance framework mapping (53 tests)
+│   ├── test_sarif.py             # SARIF v2.1.0 export (30 tests)
+│   ├── test_plugins.py           # Plugin architecture (26 tests)
+│   ├── test_scan_profiles.py     # Scan profiles & category gating (36 tests)
+│   ├── test_auto_scanner.py      # Auto scanner & parallel dispatch (67 tests)
+│   ├── test_config.py            # Config file loading (30 tests)
+│   └── test_baseline.py          # Baseline diff scanning (20 tests)
 │
 └── skyhigh_scanner/              # Main package
     ├── __init__.py               # VERSION = "1.0.0"
@@ -526,7 +588,12 @@ SKYHIGH-SCANNER/
     │   ├── discovery.py          # Network discovery & classification
     │   ├── cve_database.py       # SQLite CVE storage
     │   ├── cve_sync.py           # NVD API 2.0 & CISA KEV sync
-    │   └── reporting.py          # HTML report generation
+    │   ├── reporting.py          # HTML/PDF report generation
+    │   ├── compliance.py         # Compliance framework mapping engine
+    │   ├── config.py             # YAML/TOML config file loader
+    │   ├── baseline.py           # Baseline diff scanning
+    │   ├── scan_profiles.py      # Scan profile definitions
+    │   └── plugin_registry.py    # Plugin discovery & registration
     │
     ├── scanners/                 # Scanner modules
     │   ├── auto_scanner.py       # Auto-discover & dispatch
@@ -549,8 +616,11 @@ SKYHIGH-SCANNER/
     │   ├── oracle_db_checks.py, mysql_checks.py, mongodb_checks.py
     │
     ├── cve_data/                 # CVE data files
-    │   ├── cpe_mappings.json     # 49 CPE strings for NVD sync
-    │   └── seed/                 # 21 seed JSON files (451 curated CVEs)
+    │   ├── cpe_mappings.json     # 47 CPE strings for NVD sync
+    │   └── seed/                 # 21 seed JSON files (510 curated CVEs)
+    │
+    ├── plugins/                  # Auto-discovered plugin directory
+    │   └── example_scanner.py    # Example plugin template
     │
     └── benchmarks/               # CIS benchmark definitions (6 JSON files)
 ```
@@ -594,7 +664,7 @@ pytest tests/test_seed_validation.py -v
 | Module | Tests | Coverage |
 |--------|-------|----------|
 | `core/finding.py` | 10 | 100% |
-| `core/reporting.py` | 11 | 100% |
+| `core/reporting.py` | 49 | 100% |
 | `core/credential_manager.py` | 18 | 98% |
 | `core/ip_utils.py` | 16 | 97% |
 | `core/version_utils.py` | 20 | 94% |
@@ -603,9 +673,15 @@ pytest tests/test_seed_validation.py -v
 | EPSS integration | 27 | N/A (cross-module) |
 | Incremental CVE sync | 23 | N/A (cross-module) |
 | Compliance mapping | 53 | N/A (cross-module) |
+| SARIF export | 30 | N/A (cross-module) |
+| Plugin architecture | 26 | N/A (cross-module) |
+| Scan profiles | 36 | N/A (cross-module) |
+| Auto scanner & parallel | 67 | N/A (cross-module) |
+| Config file loading | 30 | N/A (cross-module) |
+| Baseline diff scanning | 20 | N/A (cross-module) |
 | Seed file validation | 12 | N/A |
 | CLI argument parsing | 25 | N/A |
-| **Total** | **269** | |
+| **Total** | **521** | |
 
 ### CI Pipeline
 
@@ -637,7 +713,7 @@ Contributions are welcome! Here's how to get started:
 2. **Create** a feature branch: `git checkout -b feature/my-feature`
 3. **Install** dev dependencies: `pip install -r requirements-dev.txt`
 4. **Make** your changes
-5. **Run tests**: `pytest` -- all 269 tests must pass
+5. **Run tests**: `pytest` -- all 521 tests must pass
 6. **Lint**: `ruff check skyhigh_scanner/ tests/`
 7. **Commit**: `git commit -m "Add my feature"`
 8. **Push**: `git push origin feature/my-feature`
