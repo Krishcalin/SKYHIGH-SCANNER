@@ -6,9 +6,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from skyhigh_scanner.core.finding import Finding
 from skyhigh_scanner.core.cve_database import CVEDatabase
-
+from skyhigh_scanner.core.finding import Finding
 
 # ── CVE Database: EPSS propagation ─────────────────────────────────────
 

@@ -1,14 +1,10 @@
 """Tests for skyhigh_scanner.core.credential_manager."""
 
 import os
-import pytest
 from unittest.mock import patch
 
 from skyhigh_scanner.core.credential_manager import (
     CredentialManager,
-    SSHCredential,
-    WinRMCredential,
-    SNMPCredential,
     DBCredential,
 )
 

@@ -22,13 +22,11 @@ import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict
 
 from .ip_utils import expand_ip_range, reverse_dns
 
-
 # ── Port → service mapping ──────────────────────────────────────────
-SERVICE_PORTS: Dict[int, str] = {
+SERVICE_PORTS: dict[int, str] = {
     # Windows
     135:   "msrpc",
     139:   "netbios-ssn",
@@ -97,16 +95,16 @@ class HostInfo:
     hostname: str = ""
     os_guess: str = ""
     target_type: str = ""       # windows | linux | cisco | webserver | middleware | database
-    services: List[ServiceInfo] = field(default_factory=list)
+    services: list[ServiceInfo] = field(default_factory=list)
     reachable: bool = True
-    scan_types: List[str] = field(default_factory=list)  # recommended scanner types
+    scan_types: list[str] = field(default_factory=list)  # recommended scanner types
     ttl: int = 0                # TTL from TCP probe (0 = unknown)
     os_confidence: str = "low"  # low | medium | high
 
     def has_port(self, port: int) -> bool:
         return any(s.port == port for s in self.services)
 
-    def get_service(self, port: int) -> Optional[ServiceInfo]:
+    def get_service(self, port: int) -> ServiceInfo | None:
         for s in self.services:
             if s.port == port:
                 return s
@@ -132,7 +130,7 @@ def guess_os_from_ttl(ttl: int) -> str:
     return ""
 
 
-def _resolve_os(signals: List[str]) -> str:
+def _resolve_os(signals: list[str]) -> str:
     """Pick the best OS guess from multiple signals using majority vote."""
     if not signals:
         return ""
@@ -156,7 +154,7 @@ def _resolve_os(signals: List[str]) -> str:
     return counts.most_common(1)[0][0]
 
 
-def _os_confidence(signals: List[str]) -> str:
+def _os_confidence(signals: list[str]) -> str:
     """Determine confidence level based on number of corroborating signals."""
     if not signals:
         return "low"
@@ -173,7 +171,7 @@ def _os_confidence(signals: List[str]) -> str:
 class NetworkDiscovery:
     """Discover live hosts, scan ports, fingerprint services, classify targets."""
 
-    def __init__(self, ip_range: str, ports: List[int] = None,
+    def __init__(self, ip_range: str, ports: list[int] = None,
                  max_hosts: int = 256, timeout: int = 3,
                  workers: int = 50, verbose: bool = False):
         self.ip_range = ip_range
@@ -199,7 +197,7 @@ class NetworkDiscovery:
                 continue
         return False
 
-    def discover_hosts(self) -> List[str]:
+    def discover_hosts(self) -> list[str]:
         """Return list of reachable IPs."""
         all_ips = expand_ip_range(self.ip_range)
         if len(all_ips) > self.max_hosts:
@@ -247,7 +245,7 @@ class NetworkDiscovery:
         return 0
 
     # ── Phase 2: Port scanning ───────────────────────────────────────
-    def _scan_port(self, ip: str, port: int) -> Optional[ServiceInfo]:
+    def _scan_port(self, ip: str, port: int) -> ServiceInfo | None:
         """TCP connect scan on a single port."""
         try:
             with socket.create_connection((ip, port), timeout=self.timeout) as sock:
@@ -264,7 +262,7 @@ class NetworkDiscovery:
         except (OSError, socket.timeout):
             return None
 
-    def scan_ports(self, ip: str) -> List[ServiceInfo]:
+    def scan_ports(self, ip: str) -> list[ServiceInfo]:
         """Scan all configured ports on a single host."""
         services = []
         with ThreadPoolExecutor(max_workers=min(self.workers, len(self.ports))) as pool:
@@ -279,7 +277,6 @@ class NetworkDiscovery:
     def _grab_http_banner(self, ip: str, port: int, use_ssl: bool = False) -> str:
         """Grab HTTP Server header."""
         try:
-            scheme = "https" if use_ssl else "http"
             sock = socket.create_connection((ip, port), timeout=self.timeout)
             if use_ssl:
                 ctx = ssl.create_default_context()
@@ -338,7 +335,7 @@ class NetworkDiscovery:
           5. TTL-based OS fingerprinting (128 → Windows, 64 → Linux)
         """
         scan_types: set = set()
-        os_signals: List[str] = []  # collect OS hints for confidence
+        os_signals: list[str] = []  # collect OS hints for confidence
 
         # ── 1. Port-based OS detection ───────────────────────────────
         # Windows indicators
@@ -366,10 +363,7 @@ class NetworkDiscovery:
         telnet_svc = host.get_service(23)
         if telnet_svc and telnet_svc.banner:
             banner_lower = telnet_svc.banner.lower()
-            if "cisco" in banner_lower or "ios" in banner_lower:
-                os_signals.append("Cisco IOS")
-                scan_types.add("cisco")
-            elif "user access verification" in banner_lower:
+            if "cisco" in banner_lower or "ios" in banner_lower or "user access verification" in banner_lower:
                 os_signals.append("Cisco IOS")
                 scan_types.add("cisco")
 
@@ -444,7 +438,7 @@ class NetworkDiscovery:
         host.scan_types = sorted(scan_types)
 
     # ── Full discovery pipeline ──────────────────────────────────────
-    def discover(self) -> List[HostInfo]:
+    def discover(self) -> list[HostInfo]:
         """Run the complete discovery pipeline.
 
         Returns:
@@ -459,7 +453,7 @@ class NetworkDiscovery:
             return []
 
         # Phase 2 & 3: Port scan + TTL probe + enrich each host
-        hosts: List[HostInfo] = []
+        hosts: list[HostInfo] = []
         for ip in live_ips:
             self._log(f"Scanning ports on {ip}...")
             services = self.scan_ports(ip)

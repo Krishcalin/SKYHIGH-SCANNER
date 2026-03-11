@@ -8,16 +8,15 @@ Checks: debug mode, .env exposure, Ignition RCE, APP_KEY, Telescope in prod.
 from __future__ import annotations
 
 import re
-from typing import List
 
-from ..core.finding import Finding
 from ..core.credential_manager import CredentialManager
+from ..core.finding import Finding
 
 
 def run_checks(transport, host_ip: str, version_info: str,
                credentials: CredentialManager = None,
-               verbose: bool = False) -> List[Finding]:
-    findings: List[Finding] = []
+               verbose: bool = False) -> list[Finding]:
+    findings: list[Finding] = []
 
     # version_info here is the path to artisan file
     artisan_path = version_info.strip()
@@ -30,9 +29,9 @@ def run_checks(transport, host_ip: str, version_info: str,
     try:
         ver_output = transport.execute(f"cd {app_dir} && php artisan --version 2>/dev/null").strip()
         m = re.search(r"(\d+\.\d+\.\d+)", ver_output)
-        laravel_ver = m.group(1) if m else ""
+        m.group(1) if m else ""
     except Exception:
-        laravel_ver = ""
+        pass
 
     # Check .env file
     try:
@@ -78,7 +77,7 @@ def run_checks(transport, host_ip: str, version_info: str,
 
     # .env exposure via HTTP
     try:
-        from ..core.transport import HTTPTransport, HAS_REQUESTS
+        from ..core.transport import HAS_REQUESTS, HTTPTransport
         if HAS_REQUESTS:
             http = HTTPTransport(f"http://{host_ip}", timeout=5)
             for path in ["/.env", "/.env.backup", "/.env.old"]:
@@ -100,7 +99,7 @@ def run_checks(transport, host_ip: str, version_info: str,
 
     # Ignition debug page (CVE-2021-3129)
     try:
-        from ..core.transport import HTTPTransport, HAS_REQUESTS
+        from ..core.transport import HAS_REQUESTS, HTTPTransport
         if HAS_REQUESTS:
             http = HTTPTransport(f"http://{host_ip}", timeout=5)
             status, body = http.probe_path("/_ignition/health-check")

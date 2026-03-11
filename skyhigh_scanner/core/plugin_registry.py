@@ -42,7 +42,6 @@ import logging
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Type
 
 logger = logging.getLogger(__name__)
 
@@ -53,9 +52,9 @@ class PluginInfo:
 
     command: str                    # CLI sub-command name (e.g. "my-scanner")
     help: str                      # One-line description for argparse
-    scanner_class: Type            # The ScannerBase subclass
-    module_path: Optional[str] = None  # File path of the plugin module
-    required_deps: List[str] = field(default_factory=list)
+    scanner_class: type            # The ScannerBase subclass
+    module_path: str | None = None  # File path of the plugin module
+    required_deps: list[str] = field(default_factory=list)
 
     @property
     def name(self) -> str:
@@ -68,13 +67,13 @@ class PluginInfo:
 
 # ── Global registry ─────────────────────────────────────────────────
 
-_registry: Dict[str, PluginInfo] = {}
+_registry: dict[str, PluginInfo] = {}
 
 
 def scanner_plugin(
     command: str,
     help: str = "",
-    required_deps: Optional[List[str]] = None,
+    required_deps: list[str] | None = None,
 ):
     """Decorator to register a ScannerBase subclass as a plugin.
 
@@ -97,10 +96,10 @@ def scanner_plugin(
 
 
 def _register_class(
-    cls: Type,
+    cls: type,
     command: str,
     help_text: str,
-    required_deps: List[str],
+    required_deps: list[str],
 ) -> None:
     """Register a scanner class in the global registry."""
     from .scanner_base import ScannerBase  # deferred to avoid circular import
@@ -137,12 +136,12 @@ def _register_class(
     logger.debug("Registered plugin: %s → %s", command, cls.__name__)
 
 
-def get_registry() -> Dict[str, PluginInfo]:
+def get_registry() -> dict[str, PluginInfo]:
     """Return a copy of the current plugin registry."""
     return dict(_registry)
 
 
-def get_plugin(command: str) -> Optional[PluginInfo]:
+def get_plugin(command: str) -> PluginInfo | None:
     """Look up a plugin by its CLI command name."""
     return _registry.get(command)
 
@@ -154,7 +153,7 @@ def clear_registry() -> None:
 
 # ── Discovery & loading ─────────────────────────────────────────────
 
-def _load_module_from_path(path: Path) -> Optional[str]:
+def _load_module_from_path(path: Path) -> str | None:
     """Import a Python module from a file path. Returns module name or None."""
     if not path.is_file() or path.suffix != ".py":
         return None
@@ -182,8 +181,8 @@ def _load_module_from_path(path: Path) -> Optional[str]:
 
 
 def discover_plugins(
-    extra_dirs: Optional[List[str]] = None,
-) -> Dict[str, PluginInfo]:
+    extra_dirs: list[str] | None = None,
+) -> dict[str, PluginInfo]:
     """Discover and load plugins from all sources.
 
     Sources (in order):
@@ -242,6 +241,6 @@ def discover_plugins(
     return get_registry()
 
 
-def list_plugins() -> List[PluginInfo]:
+def list_plugins() -> list[PluginInfo]:
     """Return all registered plugins sorted by command name."""
     return sorted(_registry.values(), key=lambda p: p.command)

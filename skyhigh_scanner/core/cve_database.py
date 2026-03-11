@@ -9,10 +9,8 @@ or from bundled seed JSON files for offline use.
 from __future__ import annotations
 
 import json
-import os
 import sqlite3
 from pathlib import Path
-from typing import List, Optional
 
 from .finding import Finding
 from .version_utils import parse_ver, version_in_range
@@ -27,7 +25,7 @@ class CVEDatabase:
 
     def __init__(self, db_path: str = None):
         self.db_path = db_path or str(_DEFAULT_DB)
-        self.conn: Optional[sqlite3.Connection] = None
+        self.conn: sqlite3.Connection | None = None
 
     # ── Connection management ────────────────────────────────────────
     def open(self) -> None:
@@ -128,7 +126,7 @@ class CVEDatabase:
 
     def _import_json_file(self, path: Path) -> int:
         """Import a single seed JSON file."""
-        with open(path, "r", encoding="utf-8") as fh:
+        with open(path, encoding="utf-8") as fh:
             entries = json.load(fh)
 
         if isinstance(entries, dict):
@@ -211,7 +209,7 @@ class CVEDatabase:
 
     # ── CVE lookup methods ───────────────────────────────────────────
     def check_version(self, platform: str, version: str,
-                      product: str = "") -> List[Finding]:
+                      product: str = "") -> list[Finding]:
         """Match a software version against CVE database.
 
         Args:
@@ -270,7 +268,7 @@ class CVEDatabase:
         return findings
 
     def check_linux_package(self, distro: str, release: str,
-                            package_name: str, installed_version: str) -> List[Finding]:
+                            package_name: str, installed_version: str) -> list[Finding]:
         """Check a Linux package version against known CVEs."""
         if not self.conn:
             return []
@@ -291,7 +289,7 @@ class CVEDatabase:
             fixed = row["fixed_version"]
             if fixed and installed_parsed < parse_ver(fixed):
                 findings.append(Finding(
-                    rule_id=f"LNX-CVE",
+                    rule_id="LNX-CVE",
                     name=row["name"] or f"Vulnerable package: {package_name}",
                     category="Known CVE",
                     severity=row["severity"],
@@ -311,7 +309,7 @@ class CVEDatabase:
         return findings
 
     # ── CISA KEV flagging ────────────────────────────────────────────
-    def flag_kev_findings(self, findings: List[Finding]) -> int:
+    def flag_kev_findings(self, findings: list[Finding]) -> int:
         """Flag findings that match CISA Known Exploited Vulnerabilities.
 
         Returns:
@@ -353,7 +351,7 @@ class CVEDatabase:
         self.conn.commit()
         return count
 
-    def flag_epss_findings(self, findings: List[Finding]) -> int:
+    def flag_epss_findings(self, findings: list[Finding]) -> int:
         """Enrich findings with EPSS scores from the database.
 
         Returns:

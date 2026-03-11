@@ -1,13 +1,12 @@
 """Tests for skyhigh_scanner.core.scanner_base."""
 
 import json
-import tempfile
 from pathlib import Path
 
 import pytest
 
-from skyhigh_scanner.core.scanner_base import ScannerBase
 from skyhigh_scanner.core.finding import Finding
+from skyhigh_scanner.core.scanner_base import ScannerBase
 
 
 class ConcreteScanner(ScannerBase):

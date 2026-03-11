@@ -9,12 +9,9 @@ Usage:
 
 from __future__ import annotations
 
-import json
 import sys
 import time
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
-from typing import Optional
 
 try:
     import requests
@@ -23,7 +20,6 @@ except ImportError:
     HAS_REQUESTS = False
 
 from .cve_database import CVEDatabase
-
 
 # ── CPE match strings for target platforms ───────────────────────────
 CPE_QUERIES = {
@@ -273,7 +269,7 @@ class CVESync:
                         if not cpe_match.get("vulnerable"):
                             continue
                         cpe_uri = cpe_match.get("criteria", "")
-                        ver_start = cpe_match.get("versionStartIncluding",
+                        cpe_match.get("versionStartIncluding",
                                     cpe_match.get("versionStartExcluding", ""))
                         ver_end = cpe_match.get("versionEndIncluding",
                                   cpe_match.get("versionEndExcluding", ""))
@@ -305,7 +301,7 @@ class CVESync:
         return count
 
     @staticmethod
-    def _cvss_to_severity(score: Optional[float]) -> str:
+    def _cvss_to_severity(score: float | None) -> str:
         if score is None:
             return "MEDIUM"
         if score >= 9.0:

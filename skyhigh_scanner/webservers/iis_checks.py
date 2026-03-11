@@ -9,12 +9,10 @@ Checks: version CVEs, app pool identity, request filtering, ASP.NET settings,
 from __future__ import annotations
 
 import re
-from typing import List
 
+from ..core.credential_manager import CredentialManager
 from ..core.finding import Finding
 from ..core.transport import HTTPTransport
-from ..core.credential_manager import CredentialManager
-
 
 IIS_CVE_VERSIONS = {
     "6.0":  ("CVE-2017-7269", "CRITICAL", "IIS 6.0 WebDAV ScStoragePathFromUrl Buffer Overflow"),
@@ -32,9 +30,9 @@ IIS_CVE_VERSIONS = {
 
 def run_checks(http: HTTPTransport, url: str,
                credentials: CredentialManager = None,
-               verbose: bool = False) -> List[Finding]:
+               verbose: bool = False) -> list[Finding]:
     """Run IIS-specific checks."""
-    findings: List[Finding] = []
+    findings: list[Finding] = []
     headers = http.get_headers()
     server = headers.get("Server", "")
 

@@ -13,12 +13,10 @@ Supports multiple input formats:
 from __future__ import annotations
 
 import ipaddress
-import re
 import socket
-from typing import List
 
 
-def expand_ip_range(spec: str) -> List[str]:
+def expand_ip_range(spec: str) -> list[str]:
     """Expand an IP range specification into a list of individual IP strings.
 
     Supports CIDR, start-end ranges, single IPs, hostnames, and

@@ -10,10 +10,9 @@ from __future__ import annotations
 
 import re
 import socket
-from typing import List
 
-from ..core.finding import Finding
 from ..core.credential_manager import CredentialManager
+from ..core.finding import Finding
 from ..core.version_utils import version_in_range
 
 ORACLE_CVES = [
@@ -42,8 +41,8 @@ ORACLE_CVES = [
 
 def run_checks(transport, host_ip: str, version_info: str,
                credentials: CredentialManager = None,
-               verbose: bool = False) -> List[Finding]:
-    findings: List[Finding] = []
+               verbose: bool = False) -> list[Finding]:
+    findings: list[Finding] = []
 
     # Parse Oracle version
     m = re.search(r"Release\s+(\d+\.\d+\.\d+\.\d+)", version_info)
@@ -83,7 +82,7 @@ def run_checks(transport, host_ip: str, version_info: str,
 
     # OEM Console exposure
     try:
-        from ..core.transport import HTTPTransport, HAS_REQUESTS
+        from ..core.transport import HAS_REQUESTS, HTTPTransport
         if HAS_REQUESTS:
             for port in (5500, 1158):
                 try:

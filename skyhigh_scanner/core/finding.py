@@ -13,8 +13,7 @@ The ``line_content`` field is overloaded:
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field, asdict
-from typing import Dict, List, Optional
+from dataclasses import asdict, dataclass
 
 
 @dataclass
@@ -30,16 +29,16 @@ class Finding:
     line_content: str                   # config value / version string
     description: str
     recommendation: str
-    cwe: Optional[str] = None           # e.g. CWE-287
-    cve: Optional[str] = None           # e.g. CVE-2024-38063
-    target_type: Optional[str] = None   # windows | linux | cisco | webserver | middleware | database
-    cvss: Optional[float] = None        # CVSS v3 base score
+    cwe: str | None = None           # e.g. CWE-287
+    cve: str | None = None           # e.g. CVE-2024-38063
+    target_type: str | None = None   # windows | linux | cisco | webserver | middleware | database
+    cvss: float | None = None        # CVSS v3 base score
     cisa_kev: bool = False              # True if in CISA Known Exploited Vulnerabilities
-    epss: Optional[float] = None        # Exploit Prediction Scoring System (0.0-1.0)
-    fix_version: Optional[str] = None   # Version that fixes the issue
-    fix_kb: Optional[str] = None        # Windows KB number
-    advisory: Optional[str] = None      # Vendor advisory ID
-    compliance: Optional[Dict[str, List[str]]] = None  # {framework: [controls]}
+    epss: float | None = None        # Exploit Prediction Scoring System (0.0-1.0)
+    fix_version: str | None = None   # Version that fixes the issue
+    fix_kb: str | None = None        # Windows KB number
+    advisory: str | None = None      # Vendor advisory ID
+    compliance: dict[str, list[str]] | None = None  # {framework: [controls]}
 
     # ── Serialisation ────────────────────────────────────────────────
     def to_dict(self) -> dict:

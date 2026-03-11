@@ -1,17 +1,18 @@
 """Tests for the baseline / diff scanning module."""
 
 import json
+
 import pytest
 
-from skyhigh_scanner.core.finding import Finding
 from skyhigh_scanner.core.baseline import (
     _finding_key,
     _finding_key_from_dict,
-    load_baseline,
     compute_diff,
     diff_summary,
+    load_baseline,
     print_diff_report,
 )
+from skyhigh_scanner.core.finding import Finding
 
 
 def _make_finding(**kwargs):

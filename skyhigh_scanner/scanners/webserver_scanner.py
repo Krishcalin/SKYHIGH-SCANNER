@@ -12,13 +12,11 @@ Rule ID format: WEB-COMMON-{NNN}, WEB-{SERVER}-{CATEGORY}-{NNN}
 from __future__ import annotations
 
 import re
-import ssl
-import socket
 from datetime import datetime
 
-from ..core.scanner_base import ScannerBase
 from ..core.credential_manager import CredentialManager
-from ..core.transport import HTTPTransport, HAS_REQUESTS
+from ..core.scanner_base import ScannerBase
+from ..core.transport import HAS_REQUESTS, HTTPTransport
 
 
 class WebServerScanner(ScannerBase):
@@ -121,18 +119,16 @@ class WebServerScanner(ScannerBase):
         return ""
 
     def _check_server_disclosure(self, url: str, banner: str) -> None:
-        if banner:
-            # Check for version in banner
-            if re.search(r"\d+\.\d+", banner):
-                self._add(
-                    rule_id="WEB-COMMON-001", category="Information Disclosure",
-                    name="Server version disclosed in header",
-                    severity="MEDIUM", file_path=url, line_num=0,
-                    line_content=f"Server: {banner}",
-                    description="Server header reveals version information.",
-                    recommendation="Remove or obscure version from Server header.",
-                    cwe="CWE-200",
-                )
+        if banner and re.search(r"\d+\.\d+", banner):
+            self._add(
+                rule_id="WEB-COMMON-001", category="Information Disclosure",
+                name="Server version disclosed in header",
+                severity="MEDIUM", file_path=url, line_num=0,
+                line_content=f"Server: {banner}",
+                description="Server header reveals version information.",
+                recommendation="Remove or obscure version from Server header.",
+                cwe="CWE-200",
+            )
 
     def _check_security_headers(self, url: str, headers: dict) -> None:
         required_headers = {

@@ -7,13 +7,11 @@ Checks: EOL Node.js, Express version, npm vulnerable packages, .env exposure.
 
 from __future__ import annotations
 
-import re
 import json
-from typing import List
+import re
 
-from ..core.finding import Finding
 from ..core.credential_manager import CredentialManager
-from ..core.version_utils import parse_ver
+from ..core.finding import Finding
 
 NODE_EOL = {
     "10": "2021-04-30", "11": "2019-06-01", "12": "2022-04-30",
@@ -25,8 +23,8 @@ NODE_EOL = {
 
 def run_checks(transport, host_ip: str, version_info: str,
                credentials: CredentialManager = None,
-               verbose: bool = False) -> List[Finding]:
-    findings: List[Finding] = []
+               verbose: bool = False) -> list[Finding]:
+    findings: list[Finding] = []
 
     # Parse Node.js version
     m = re.search(r"v(\d+\.\d+\.\d+)", version_info)
@@ -85,7 +83,7 @@ def run_checks(transport, host_ip: str, version_info: str,
 
     # Express.js detection and X-Powered-By header
     try:
-        from ..core.transport import HTTPTransport, HAS_REQUESTS
+        from ..core.transport import HAS_REQUESTS, HTTPTransport
         if HAS_REQUESTS:
             for port in (3000, 5000, 8080):
                 try:

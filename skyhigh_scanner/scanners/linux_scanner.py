@@ -17,11 +17,10 @@ from __future__ import annotations
 
 import re
 
-from ..core.scanner_base import ScannerBase
 from ..core.credential_manager import CredentialManager
 from ..core.ip_utils import expand_ip_range
-from ..core.transport import SSHTransport, HAS_PARAMIKO
-from ..core.version_utils import parse_ver
+from ..core.scanner_base import ScannerBase
+from ..core.transport import HAS_PARAMIKO, SSHTransport
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # SSH hardening rules (CIS 5.2.x)
@@ -348,7 +347,7 @@ class LinuxScanner(ScannerBase):
         """Check mount options for security."""
         self._vprint(f"  Checking filesystem on {host}")
         try:
-            fstab = ssh.get_file("/etc/fstab")
+            ssh.get_file("/etc/fstab")
             mounts = ssh.execute("mount")
             # Check /tmp noexec
             if "/tmp" in mounts and "noexec" not in mounts.split("/tmp")[1].split("\n")[0]:

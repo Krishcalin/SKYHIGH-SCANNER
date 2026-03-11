@@ -2,8 +2,6 @@
 
 import json
 
-import pytest
-
 from skyhigh_scanner.core.finding import Finding
 
 

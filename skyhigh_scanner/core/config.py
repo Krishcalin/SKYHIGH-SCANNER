@@ -13,10 +13,8 @@ CLI arguments always override config file values.
 
 from __future__ import annotations
 
-import json
-import os
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 # Config file names searched in order
 _CONFIG_NAMES = [
@@ -56,7 +54,7 @@ _VALID_KEYS = frozenset({
 })
 
 
-def find_config(explicit_path: Optional[str] = None) -> Optional[Path]:
+def find_config(explicit_path: str | None = None) -> Path | None:
     """Find a config file in standard locations.
 
     Args:
@@ -86,7 +84,7 @@ def find_config(explicit_path: Optional[str] = None) -> Optional[Path]:
     return None
 
 
-def load_config(path: Path) -> Dict[str, Any]:
+def load_config(path: Path) -> dict[str, Any]:
     """Load and validate a config file.
 
     Args:
@@ -122,7 +120,7 @@ def load_config(path: Path) -> Dict[str, Any]:
     return data
 
 
-def merge_config_into_args(config: Dict[str, Any], args) -> None:
+def merge_config_into_args(config: dict[str, Any], args) -> None:
     """Apply config values to argparse namespace, without overriding CLI values.
 
     Only sets values where the argparse attribute is None or at its default.
@@ -147,7 +145,7 @@ def _parse_yaml(text: str) -> dict:
 
 def _parse_simple_yaml(text: str) -> dict:
     """Minimal YAML parser for flat key: value files (no PyYAML needed)."""
-    result: Dict[str, Any] = {}
+    result: dict[str, Any] = {}
     for line in text.splitlines():
         line = line.strip()
         if not line or line.startswith("#"):

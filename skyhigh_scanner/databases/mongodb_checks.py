@@ -9,15 +9,14 @@ from __future__ import annotations
 
 import re
 import socket
-from typing import List
 
-from ..core.finding import Finding
 from ..core.credential_manager import CredentialManager
+from ..core.finding import Finding
 
 
 def run_checks(host_ip: str, credentials: CredentialManager,
-               timeout: int = 30, verbose: bool = False) -> List[Finding]:
-    findings: List[Finding] = []
+               timeout: int = 30, verbose: bool = False) -> list[Finding]:
+    findings: list[Finding] = []
 
     # Banner grab for version
     try:
@@ -30,7 +29,7 @@ def run_checks(host_ip: str, credentials: CredentialManager,
 
     # SSH-based config checks
     if credentials.has_ssh():
-        from ..core.transport import SSHTransport, HAS_PARAMIKO
+        from ..core.transport import HAS_PARAMIKO, SSHTransport
         if HAS_PARAMIKO:
             try:
                 cred = credentials.ssh
@@ -48,7 +47,7 @@ def run_checks(host_ip: str, credentials: CredentialManager,
     return findings
 
 
-def _check_config(ssh, host_ip: str, findings: List[Finding]) -> None:
+def _check_config(ssh, host_ip: str, findings: list[Finding]) -> None:
     """Check mongod.conf for security settings."""
     config = ssh.execute(
         "cat /etc/mongod.conf 2>/dev/null || "
@@ -117,7 +116,7 @@ def _check_config(ssh, host_ip: str, findings: List[Finding]) -> None:
         ))
 
 
-def _check_version(ssh, host_ip: str, findings: List[Finding]) -> None:
+def _check_version(ssh, host_ip: str, findings: list[Finding]) -> None:
     """Check MongoDB version for EOL."""
     output = ssh.execute("mongod --version 2>/dev/null || true").strip()
     m = re.search(r"v(\d+\.\d+\.\d+)", output)
@@ -139,7 +138,7 @@ def _check_version(ssh, host_ip: str, findings: List[Finding]) -> None:
             ))
 
 
-def _check_unauth_access(host_ip: str, findings: List[Finding]) -> None:
+def _check_unauth_access(host_ip: str, findings: list[Finding]) -> None:
     """Test if MongoDB allows unauthenticated access."""
     try:
         with socket.create_connection((host_ip, 27017), timeout=5) as s:

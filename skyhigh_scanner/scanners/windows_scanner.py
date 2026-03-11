@@ -16,13 +16,11 @@ Rule ID format: WIN-{CATEGORY}-{NNN}
 from __future__ import annotations
 
 import re
-from typing import Optional
 
-from ..core.scanner_base import ScannerBase
 from ..core.credential_manager import CredentialManager
 from ..core.ip_utils import expand_ip_range
-from ..core.transport import WinRMTransport, HAS_WINRM
-from ..core.version_utils import parse_ver, version_in_range
+from ..core.scanner_base import ScannerBase
+from ..core.transport import HAS_WINRM, WinRMTransport
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Rule definitions

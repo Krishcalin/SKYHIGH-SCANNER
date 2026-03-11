@@ -15,12 +15,10 @@ Rule ID format: MW-{PLATFORM}-{CATEGORY}-{NNN}
 
 from __future__ import annotations
 
-import re
-
-from ..core.scanner_base import ScannerBase
 from ..core.credential_manager import CredentialManager
 from ..core.ip_utils import expand_ip_range
-from ..core.transport import SSHTransport, WinRMTransport, HAS_PARAMIKO, HAS_WINRM
+from ..core.scanner_base import ScannerBase
+from ..core.transport import HAS_PARAMIKO, HAS_WINRM, SSHTransport, WinRMTransport
 
 
 class MiddlewareScanner(ScannerBase):
@@ -80,7 +78,7 @@ class MiddlewareScanner(ScannerBase):
             # Detect .NET Core
             dotnet_ver = ssh.execute("dotnet --list-runtimes 2>/dev/null || true").strip()
             if "Microsoft" in dotnet_ver:
-                self._vprint(f"  .NET detected")
+                self._vprint("  .NET detected")
                 self._dispatch_check("dotnet", ssh, host_ip, dotnet_ver)
 
             # Detect PHP
@@ -109,7 +107,7 @@ class MiddlewareScanner(ScannerBase):
                 "$ORACLE_HOME/bin/sqlplus -V 2>/dev/null || true"
             ).strip()
             if "Release" in oracle_ver or "Oracle" in oracle_ver:
-                self._vprint(f"  Oracle detected")
+                self._vprint("  Oracle detected")
                 self._dispatch_check("oracle", ssh, host_ip, oracle_ver)
 
     def _scan_via_winrm(self, host_ip: str) -> None:

@@ -8,17 +8,16 @@ written to reports.
 
 from __future__ import annotations
 
-import os
 import json
-from dataclasses import dataclass, field
-from typing import Optional
+import os
+from dataclasses import dataclass
 
 
 @dataclass
 class SSHCredential:
     username: str
-    password: Optional[str] = None
-    key_file: Optional[str] = None
+    password: str | None = None
+    key_file: str | None = None
     port: int = 22
 
 
@@ -26,7 +25,7 @@ class SSHCredential:
 class WinRMCredential:
     username: str
     password: str
-    domain: Optional[str] = None
+    domain: str | None = None
     port: int = 5985
     use_ssl: bool = False
 
@@ -34,9 +33,9 @@ class WinRMCredential:
 @dataclass
 class SNMPCredential:
     community: str = "public"
-    v3_user: Optional[str] = None
-    v3_auth_key: Optional[str] = None
-    v3_priv_key: Optional[str] = None
+    v3_user: str | None = None
+    v3_auth_key: str | None = None
+    v3_priv_key: str | None = None
     port: int = 161
 
 
@@ -47,9 +46,9 @@ class EnableCredential:
 
 @dataclass
 class WebCredential:
-    username: Optional[str] = None
-    password: Optional[str] = None
-    api_key: Optional[str] = None
+    username: str | None = None
+    password: str | None = None
+    api_key: str | None = None
 
 
 @dataclass
@@ -57,8 +56,8 @@ class DBCredential:
     username: str = ""
     password: str = ""
     port: int = 0
-    sid: Optional[str] = None          # Oracle SID/service name
-    database: Optional[str] = None     # MySQL/MongoDB database
+    sid: str | None = None          # Oracle SID/service name
+    database: str | None = None     # MySQL/MongoDB database
 
 
 class CredentialManager:
@@ -68,12 +67,12 @@ class CredentialManager:
     ENV_PREFIX = "SKYHIGH"
 
     def __init__(self):
-        self.ssh: Optional[SSHCredential] = None
-        self.winrm: Optional[WinRMCredential] = None
-        self.snmp: Optional[SNMPCredential] = None
-        self.enable: Optional[EnableCredential] = None
-        self.web: Optional[WebCredential] = None
-        self.db: Optional[DBCredential] = None
+        self.ssh: SSHCredential | None = None
+        self.winrm: WinRMCredential | None = None
+        self.snmp: SNMPCredential | None = None
+        self.enable: EnableCredential | None = None
+        self.web: WebCredential | None = None
+        self.db: DBCredential | None = None
 
     # ── CLI argument setters ─────────────────────────────────────────
     def set_ssh(self, username: str, password: str = None,
@@ -181,7 +180,7 @@ class CredentialManager:
               "db": {"username": "sys", "password": "oracle", "port": 1521, "sid": "ORCL"}
             }
         """
-        with open(path, "r", encoding="utf-8") as fh:
+        with open(path, encoding="utf-8") as fh:
             data = json.load(fh)
 
         if "ssh" in data and not self.ssh:

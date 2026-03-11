@@ -11,13 +11,11 @@ Rule ID format: DB-{PLATFORM}-{CATEGORY}-{NNN}
 
 from __future__ import annotations
 
-import re
 import socket
 
-from ..core.scanner_base import ScannerBase
 from ..core.credential_manager import CredentialManager
 from ..core.ip_utils import expand_ip_range
-from ..core.transport import SSHTransport, HAS_PARAMIKO
+from ..core.scanner_base import ScannerBase
 
 
 class DatabaseScanner(ScannerBase):

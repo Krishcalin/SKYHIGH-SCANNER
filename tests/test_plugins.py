@@ -6,7 +6,6 @@ import textwrap
 import pytest
 
 from skyhigh_scanner.core.plugin_registry import (
-    PluginInfo,
     clear_registry,
     discover_plugins,
     get_plugin,

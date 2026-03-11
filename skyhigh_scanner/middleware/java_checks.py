@@ -8,11 +8,10 @@ Checks: JDK EOL, Log4Shell, Spring4Shell, JBoss console, Actuator exposure.
 from __future__ import annotations
 
 import re
-from typing import List
 
-from ..core.finding import Finding
 from ..core.credential_manager import CredentialManager
-from ..core.version_utils import parse_ver, version_in_range
+from ..core.finding import Finding
+from ..core.version_utils import version_in_range
 
 JAVA_EOL = {
     "1.5": "2015-04", "1.6": "2018-12", "1.7": "2022-03",
@@ -26,8 +25,8 @@ JAVA_EOL = {
 
 def run_checks(transport, host_ip: str, version_info: str,
                credentials: CredentialManager = None,
-               verbose: bool = False) -> List[Finding]:
-    findings: List[Finding] = []
+               verbose: bool = False) -> list[Finding]:
+    findings: list[Finding] = []
 
     # Parse Java version
     m = re.search(r'"(\d+[\d._]+)"', version_info) or re.search(r'(\d+[\d._]+)', version_info)
@@ -76,7 +75,7 @@ def run_checks(transport, host_ip: str, version_info: str,
 
     # Spring Boot Actuator detection via HTTP probing
     try:
-        from ..core.transport import HTTPTransport, HAS_REQUESTS
+        from ..core.transport import HAS_REQUESTS, HTTPTransport
         if HAS_REQUESTS:
             for port in (8080, 8443, 8081):
                 try:

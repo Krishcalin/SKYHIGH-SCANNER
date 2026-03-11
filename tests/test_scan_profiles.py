@@ -12,7 +12,6 @@ from skyhigh_scanner.core.scan_profiles import (
 )
 from skyhigh_scanner.core.scanner_base import ScannerBase
 
-
 # ── Profile definitions ───────────────────────────────────────────────
 
 class TestScanProfileDataclass:

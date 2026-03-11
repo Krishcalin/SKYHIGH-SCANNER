@@ -1,19 +1,16 @@
 """Tests for the auto scanner and discovery enhancements."""
 
-import pytest
-from unittest.mock import patch, MagicMock
 
+from skyhigh_scanner.core.credential_manager import CredentialManager
 from skyhigh_scanner.core.discovery import (
     HostInfo,
     NetworkDiscovery,
     ServiceInfo,
-    guess_os_from_ttl,
-    _resolve_os,
     _os_confidence,
+    _resolve_os,
+    guess_os_from_ttl,
 )
-from skyhigh_scanner.core.credential_manager import CredentialManager
-from skyhigh_scanner.scanners.auto_scanner import AutoScanner, _CRED_REQUIREMENTS
-
+from skyhigh_scanner.scanners.auto_scanner import _CRED_REQUIREMENTS, AutoScanner
 
 # ── TTL fingerprinting ───────────────────────────────────────────────
 

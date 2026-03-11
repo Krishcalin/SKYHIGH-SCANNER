@@ -1,10 +1,8 @@
 """Tests for skyhigh_scanner.core.ip_utils."""
 
-import pytest
 from unittest.mock import patch
 
 from skyhigh_scanner.core.ip_utils import expand_ip_range, is_private, reverse_dns
-
 
 # ── expand_ip_range ───────────────────────────────────────────────────
 

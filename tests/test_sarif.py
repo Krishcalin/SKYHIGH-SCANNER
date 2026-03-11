@@ -6,7 +6,6 @@ import pytest
 
 from skyhigh_scanner.core.finding import Finding
 
-
 # ── Fixtures ──────────────────────────────────────────────────────────
 
 class _StubScanner:

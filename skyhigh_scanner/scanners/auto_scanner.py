@@ -14,15 +14,13 @@ from __future__ import annotations
 import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Dict, List, Set
 
-from ..core.scanner_base import ScannerBase
 from ..core.credential_manager import CredentialManager
-from ..core.discovery import NetworkDiscovery, HostInfo
-
+from ..core.discovery import HostInfo, NetworkDiscovery
+from ..core.scanner_base import ScannerBase
 
 # ── Credential requirements per scan type ─────────────────────────
-_CRED_REQUIREMENTS: Dict[str, str] = {
+_CRED_REQUIREMENTS: dict[str, str] = {
     "windows":    "WinRM (--win-user / --win-password)",
     "linux":      "SSH (--ssh-user / --ssh-password or --ssh-key)",
     "cisco":      "SSH or SNMP (--ssh-user or --snmp-community)",
@@ -48,7 +46,7 @@ class AutoScanner(ScannerBase):
         self.timeout = timeout
         self.threads = threads
         self.no_discovery = no_discovery
-        self._skipped_types: Dict[str, Set[str]] = {}  # scan_type → {ips}
+        self._skipped_types: dict[str, set[str]] = {}  # scan_type → {ips}
         self._lock = threading.Lock()
 
     # ── Main scan pipeline ────────────────────────────────────────────
@@ -146,7 +144,7 @@ class AutoScanner(ScannerBase):
         return scanner.findings, None
 
     # ── Discovery summary ─────────────────────────────────────────────
-    def _print_discovery_summary(self, hosts: List[HostInfo]) -> None:
+    def _print_discovery_summary(self, hosts: list[HostInfo]) -> None:
         """Print a table summarising discovered hosts."""
         print(f"\n{'─' * 78}", file=sys.stderr)
         print(f"  {'IP Address':<18} {'Hostname':<22} {'OS Guess':<14} "

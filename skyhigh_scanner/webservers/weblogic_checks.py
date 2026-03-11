@@ -8,11 +8,10 @@ Checks: console exposure, T3/IIOP deserialization CVEs, SSRF, version CVEs.
 from __future__ import annotations
 
 import re
-from typing import List
 
+from ..core.credential_manager import CredentialManager
 from ..core.finding import Finding
 from ..core.transport import HTTPTransport
-from ..core.credential_manager import CredentialManager
 from ..core.version_utils import version_in_range
 
 WEBLOGIC_CVES = [
@@ -51,8 +50,8 @@ WEBLOGIC_CVES = [
 
 def run_checks(http: HTTPTransport, url: str,
                credentials: CredentialManager = None,
-               verbose: bool = False) -> List[Finding]:
-    findings: List[Finding] = []
+               verbose: bool = False) -> list[Finding]:
+    findings: list[Finding] = []
 
     # Console exposure
     for path in ["/console", "/console/login/LoginForm.jsp"]:

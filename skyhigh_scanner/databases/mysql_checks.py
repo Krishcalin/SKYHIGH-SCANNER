@@ -9,11 +9,9 @@ Checks: version CVEs, auth (root no password, anonymous users), my.cnf security,
 from __future__ import annotations
 
 import re
-from typing import List
 
-from ..core.finding import Finding
 from ..core.credential_manager import CredentialManager
-from ..core.version_utils import version_in_range
+from ..core.finding import Finding
 
 MYSQL_EOL = {
     "5.5": "2018-12", "5.6": "2021-02", "5.7": "2023-10",
@@ -26,8 +24,8 @@ MARIADB_EOL = {
 
 
 def run_checks(host_ip: str, banner: str, credentials: CredentialManager,
-               timeout: int = 30, verbose: bool = False) -> List[Finding]:
-    findings: List[Finding] = []
+               timeout: int = 30, verbose: bool = False) -> list[Finding]:
+    findings: list[Finding] = []
 
     # Parse version from banner
     m = re.search(r"(\d+\.\d+\.\d+)", banner)
@@ -50,7 +48,7 @@ def run_checks(host_ip: str, banner: str, credentials: CredentialManager,
 
     # SSH-based config checks
     if credentials.has_ssh():
-        from ..core.transport import SSHTransport, HAS_PARAMIKO
+        from ..core.transport import HAS_PARAMIKO, SSHTransport
         if HAS_PARAMIKO:
             try:
                 cred = credentials.ssh
@@ -64,7 +62,7 @@ def run_checks(host_ip: str, banner: str, credentials: CredentialManager,
     return findings
 
 
-def _check_config(ssh, host_ip: str, findings: List[Finding]) -> None:
+def _check_config(ssh, host_ip: str, findings: list[Finding]) -> None:
     """Check my.cnf for security misconfigurations."""
     config = ssh.execute(
         "cat /etc/mysql/my.cnf 2>/dev/null || "

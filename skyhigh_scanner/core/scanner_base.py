@@ -7,17 +7,16 @@ inherits from ``ScannerBase`` and implements the ``scan()`` method.
 
 from __future__ import annotations
 
+import json
 import sys
 import time
-import json
 from abc import ABC, abstractmethod
 from collections import Counter
 from datetime import datetime, timezone
-from typing import List, Optional
 
-from .compliance import enrich_findings, compliance_summary, format_controls, FRAMEWORKS
+from .compliance import FRAMEWORKS, compliance_summary, enrich_findings, format_controls
 from .finding import Finding
-from .scan_profiles import ScanProfile, get_profile, DEFAULT_PROFILE
+from .scan_profiles import DEFAULT_PROFILE, ScanProfile, get_profile
 
 
 class ScannerBase(ABC):
@@ -45,9 +44,9 @@ class ScannerBase(ABC):
     def __init__(self, verbose: bool = False, profile: ScanProfile = None):
         self.verbose = verbose
         self.profile: ScanProfile = profile or get_profile(DEFAULT_PROFILE)
-        self.findings: List[Finding] = []
-        self.targets_scanned: List[str] = []
-        self.targets_failed: List[str] = []
+        self.findings: list[Finding] = []
+        self.targets_scanned: list[str] = []
+        self.targets_failed: list[str] = []
         self._start_time: float = 0.0
         self._end_time: float = 0.0
 

@@ -1,21 +1,20 @@
 """Tests for compliance framework mapping engine."""
 
 from skyhigh_scanner.core.compliance import (
-    CWE_MAP,
     CATEGORY_MAP,
+    CWE_MAP,
     FRAMEWORKS,
     _extract_cwe_id,
-    _lookup_cwe,
     _lookup_category,
-    map_finding,
+    _lookup_cwe,
+    compliance_summary,
     enrich_finding,
     enrich_findings,
-    compliance_summary,
     filter_by_framework,
     format_controls,
+    map_finding,
 )
 from skyhigh_scanner.core.finding import Finding
-
 
 # ── Helper ────────────────────────────────────────────────────────────
 
@@ -328,6 +327,7 @@ class TestScannerBaseCompliance:
 
     def test_csv_has_compliance_columns(self, tmp_path):
         import csv
+
         from skyhigh_scanner.core.scanner_base import ScannerBase
 
         class DummyScanner(ScannerBase):

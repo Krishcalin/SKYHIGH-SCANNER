@@ -1,14 +1,12 @@
 """Tests for skyhigh_scanner.core.version_utils."""
 
-import pytest
 
 from skyhigh_scanner.core.version_utils import (
-    parse_ver,
-    version_in_range,
     compare_versions,
     is_eol,
+    parse_ver,
+    version_in_range,
 )
-
 
 # ── parse_ver ─────────────────────────────────────────────────────────
 

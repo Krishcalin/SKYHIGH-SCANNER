@@ -8,11 +8,9 @@ Checks: EOL versions, php.ini security, phpinfo exposure, extension CVEs.
 from __future__ import annotations
 
 import re
-from typing import List
 
-from ..core.finding import Finding
 from ..core.credential_manager import CredentialManager
-from ..core.version_utils import version_in_range
+from ..core.finding import Finding
 
 PHP_EOL = {
     "5.": "2018-12-31", "7.0": "2019-01-10", "7.1": "2019-12-01",
@@ -48,8 +46,8 @@ PHP_INI_CHECKS = [
 
 def run_checks(transport, host_ip: str, version_info: str,
                credentials: CredentialManager = None,
-               verbose: bool = False) -> List[Finding]:
-    findings: List[Finding] = []
+               verbose: bool = False) -> list[Finding]:
+    findings: list[Finding] = []
 
     # Parse PHP version
     m = re.search(r"PHP\s+(\d+\.\d+\.\d+)", version_info)
@@ -95,7 +93,7 @@ def run_checks(transport, host_ip: str, version_info: str,
 
     # phpinfo() exposure via HTTP
     try:
-        from ..core.transport import HTTPTransport, HAS_REQUESTS
+        from ..core.transport import HAS_REQUESTS, HTTPTransport
         if HAS_REQUESTS:
             http = HTTPTransport(f"http://{host_ip}", timeout=5)
             for path in ["/phpinfo.php", "/info.php", "/test.php", "/php_info.php"]:

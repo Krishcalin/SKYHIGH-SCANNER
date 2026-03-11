@@ -1,18 +1,16 @@
 """Tests for the config file loader."""
 
-import pytest
 from argparse import Namespace
-from pathlib import Path
-from unittest.mock import patch
+
+import pytest
 
 from skyhigh_scanner.core.config import (
+    _VALID_KEYS,
+    _parse_simple_yaml,
     find_config,
     load_config,
     merge_config_into_args,
-    _parse_simple_yaml,
-    _VALID_KEYS,
 )
-
 
 # ── Simple YAML parser ───────────────────────────────────────────────
 

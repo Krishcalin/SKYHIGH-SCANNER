@@ -8,11 +8,8 @@ Checks: default accounts, excessive privileges, audit config,
 
 from __future__ import annotations
 
-from typing import List
-
-from ..core.finding import Finding
 from ..core.credential_manager import CredentialManager
-
+from ..core.finding import Finding
 
 ORACLE_DEFAULT_ACCOUNTS = [
     ("SCOTT", "TIGER"), ("SYS", "CHANGE_ON_INSTALL"),
@@ -22,12 +19,12 @@ ORACLE_DEFAULT_ACCOUNTS = [
 
 
 def run_checks(host_ip: str, credentials: CredentialManager,
-               timeout: int = 30, verbose: bool = False) -> List[Finding]:
-    findings: List[Finding] = []
+               timeout: int = 30, verbose: bool = False) -> list[Finding]:
+    findings: list[Finding] = []
 
     # SSH-based checks if credentials available
     if credentials.has_ssh():
-        from ..core.transport import SSHTransport, HAS_PARAMIKO
+        from ..core.transport import HAS_PARAMIKO, SSHTransport
         if HAS_PARAMIKO:
             try:
                 cred = credentials.ssh
@@ -43,7 +40,7 @@ def run_checks(host_ip: str, credentials: CredentialManager,
     return findings
 
 
-def _check_sqlnet(ssh, host_ip: str, findings: List[Finding]) -> None:
+def _check_sqlnet(ssh, host_ip: str, findings: list[Finding]) -> None:
     """Check sqlnet.ora for encryption settings."""
     output = ssh.execute(
         "cat $ORACLE_HOME/network/admin/sqlnet.ora 2>/dev/null || "
@@ -61,7 +58,7 @@ def _check_sqlnet(ssh, host_ip: str, findings: List[Finding]) -> None:
         ))
 
 
-def _check_listener(ssh, host_ip: str, findings: List[Finding]) -> None:
+def _check_listener(ssh, host_ip: str, findings: list[Finding]) -> None:
     """Check listener.ora security."""
     output = ssh.execute(
         "cat $ORACLE_HOME/network/admin/listener.ora 2>/dev/null || true"
@@ -78,7 +75,7 @@ def _check_listener(ssh, host_ip: str, findings: List[Finding]) -> None:
         ))
 
 
-def _check_init_params(ssh, host_ip: str, findings: List[Finding]) -> None:
+def _check_init_params(ssh, host_ip: str, findings: list[Finding]) -> None:
     """Check dangerous init.ora/spfile parameters."""
     output = ssh.execute(
         "cat $ORACLE_HOME/dbs/init*.ora 2>/dev/null || true"

@@ -14,9 +14,7 @@ Supported transports:
 
 from __future__ import annotations
 
-import sys
-from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 # ── Optional dependency flags ────────────────────────────────────────
 HAS_PARAMIKO = False
@@ -52,8 +50,16 @@ except ImportError:
 
 try:
     from pysnmp.hlapi import (
-        getCmd, nextCmd, bulkCmd, SnmpEngine, CommunityData,
-        UsmUserData, UdpTransportTarget, ContextData, ObjectType, ObjectIdentity,
+        CommunityData,
+        ContextData,
+        ObjectIdentity,
+        ObjectType,
+        SnmpEngine,
+        UdpTransportTarget,
+        UsmUserData,
+        bulkCmd,  # noqa: F401
+        getCmd,
+        nextCmd,
     )
     HAS_PYSNMP = True
 except ImportError:
@@ -90,7 +96,7 @@ class SSHTransport:
         self.key_file = key_file
         self.port = port
         self.timeout = timeout
-        self._client: Optional[paramiko.SSHClient] = None
+        self._client: paramiko.SSHClient | None = None
 
     def connect(self) -> None:
         self._client = paramiko.SSHClient()
@@ -268,7 +274,7 @@ class SMBTransport:
         self.domain = domain
         self.port = port
         self.timeout = timeout
-        self._conn: Optional[SMBConnection] = None
+        self._conn: SMBConnection | None = None
 
     def connect(self) -> None:
         self._conn = SMBConnection(self.host, self.host, sess_port=self.port,
@@ -413,8 +419,8 @@ class HTTPTransport:
 
     def get_ssl_info(self) -> dict:
         """Get SSL/TLS certificate and protocol info."""
-        import ssl
         import socket
+        import ssl
         from urllib.parse import urlparse
 
         parsed = urlparse(self.base_url)
@@ -426,17 +432,17 @@ class HTTPTransport:
             ctx = ssl.create_default_context()
             ctx.check_hostname = False
             ctx.verify_mode = ssl.CERT_NONE
-            with socket.create_connection((host, port), timeout=self.timeout) as sock:
-                with ctx.wrap_socket(sock, server_hostname=host) as ssock:
-                    cert = ssock.getpeercert(binary_form=False)
-                    if cert:
-                        info["subject"] = dict(x[0] for x in cert.get("subject", ()))
-                        info["issuer"] = dict(x[0] for x in cert.get("issuer", ()))
-                        info["not_before"] = cert.get("notBefore", "")
-                        info["not_after"] = cert.get("notAfter", "")
-                        info["serial"] = cert.get("serialNumber", "")
-                    info["protocol"] = ssock.version()
-                    info["cipher"] = ssock.cipher()
+            with socket.create_connection((host, port), timeout=self.timeout) as sock, \
+                 ctx.wrap_socket(sock, server_hostname=host) as ssock:
+                cert = ssock.getpeercert(binary_form=False)
+                if cert:
+                    info["subject"] = dict(x[0] for x in cert.get("subject", ()))
+                    info["issuer"] = dict(x[0] for x in cert.get("issuer", ()))
+                    info["not_before"] = cert.get("notBefore", "")
+                    info["not_after"] = cert.get("notAfter", "")
+                    info["serial"] = cert.get("serialNumber", "")
+                info["protocol"] = ssock.version()
+                info["cipher"] = ssock.cipher()
         except Exception as e:
             info["error"] = str(e)
         return info

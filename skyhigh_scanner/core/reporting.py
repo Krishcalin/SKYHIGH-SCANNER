@@ -21,7 +21,6 @@ import html
 import json
 from collections import Counter
 from datetime import datetime, timezone
-from typing import List, Optional
 
 try:
     import weasyprint  # type: ignore[import-untyped]
@@ -29,9 +28,8 @@ try:
 except ImportError:
     HAS_WEASYPRINT = False
 
-from .compliance import format_controls, compliance_summary, FRAMEWORKS
+from .compliance import FRAMEWORKS, compliance_summary, format_controls
 from .finding import Finding
-
 
 # ── Colour themes per target type ────────────────────────────────────
 THEME_COLORS = {
@@ -53,7 +51,7 @@ SEVERITY_BADGE = {
 }
 
 
-def _build_charts_data(findings: List[Finding], summary: dict) -> dict:
+def _build_charts_data(findings: list[Finding], summary: dict) -> dict:
     """Compute data needed for Chart.js visualisations.
 
     Returns a dict with serialisable lists/dicts for injection into JS.
@@ -112,7 +110,7 @@ def _build_charts_data(findings: List[Finding], summary: dict) -> dict:
     }
 
 
-def _build_charts_section(findings: List[Finding], summary: dict) -> str:
+def _build_charts_section(findings: list[Finding], summary: dict) -> str:
     """Build the Chart.js dashboard section HTML + JS."""
     if not findings:
         return ""
@@ -237,10 +235,10 @@ def generate_html_report(
     scanner_name: str,
     version: str,
     target_type: str,
-    findings: List[Finding],
+    findings: list[Finding],
     summary: dict,
-    targets_scanned: List[str] = None,
-    targets_failed: List[str] = None,
+    targets_scanned: list[str] = None,
+    targets_failed: list[str] = None,
 ) -> str:
     """Generate a full interactive HTML report.
 
@@ -261,7 +259,7 @@ def generate_html_report(
     high = sev_counts.get("HIGH", 0)
     med = sev_counts.get("MEDIUM", 0)
     low = sev_counts.get("LOW", 0)
-    info = sev_counts.get("INFO", 0)
+    sev_counts.get("INFO", 0)
 
     # EPSS stats
     epss_high_risk = sum(1 for f in findings if f.epss is not None and f.epss >= 0.5)
@@ -531,10 +529,10 @@ def _build_pdf_html(
     scanner_name: str,
     version: str,
     target_type: str,
-    findings: List[Finding],
+    findings: list[Finding],
     summary: dict,
-    targets_scanned: List[str] = None,
-    targets_failed: List[str] = None,
+    targets_scanned: list[str] = None,
+    targets_failed: list[str] = None,
 ) -> str:
     """Build a print-optimised HTML string suitable for PDF conversion.
 
@@ -778,10 +776,10 @@ def generate_pdf_report(
     scanner_name: str,
     version: str,
     target_type: str,
-    findings: List[Finding],
+    findings: list[Finding],
     summary: dict,
-    targets_scanned: List[str] = None,
-    targets_failed: List[str] = None,
+    targets_scanned: list[str] = None,
+    targets_failed: list[str] = None,
 ) -> bytes:
     """Generate a PDF report.
 

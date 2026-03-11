@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Dict, List, Set, Tuple
 
 from .finding import Finding
 
@@ -33,7 +32,7 @@ def _finding_key_from_dict(d: dict) -> str:
     return f"{d.get('rule_id', '')}|{d.get('file_path', '')}|{d.get('line_content', '')}"
 
 
-def load_baseline(path: str) -> List[dict]:
+def load_baseline(path: str) -> list[dict]:
     """Load a baseline JSON file.
 
     Args:
@@ -50,7 +49,7 @@ def load_baseline(path: str) -> List[dict]:
     if not p.is_file():
         raise FileNotFoundError(f"Baseline file not found: {path}")
 
-    with open(p, "r", encoding="utf-8") as fh:
+    with open(p, encoding="utf-8") as fh:
         data = json.load(fh)
 
     # Support both flat list and {"findings": [...]} format
@@ -65,9 +64,9 @@ def load_baseline(path: str) -> List[dict]:
 
 
 def compute_diff(
-    current: List[Finding],
-    baseline: List[dict],
-) -> Dict[str, list]:
+    current: list[Finding],
+    baseline: list[dict],
+) -> dict[str, list]:
     """Compare current findings against a baseline.
 
     Args:
@@ -80,8 +79,8 @@ def compute_diff(
             "fixed": List of dicts present in baseline but not now.
             "unchanged": List of Finding objects present in both.
     """
-    baseline_keys: Set[str] = {_finding_key_from_dict(d) for d in baseline}
-    current_keys: Set[str] = {_finding_key(f) for f in current}
+    baseline_keys: set[str] = {_finding_key_from_dict(d) for d in baseline}
+    current_keys: set[str] = {_finding_key(f) for f in current}
 
     new_findings = [f for f in current if _finding_key(f) not in baseline_keys]
     unchanged = [f for f in current if _finding_key(f) in baseline_keys]
@@ -94,7 +93,7 @@ def compute_diff(
     }
 
 
-def diff_summary(diff: Dict[str, list]) -> Dict[str, int]:
+def diff_summary(diff: dict[str, list]) -> dict[str, int]:
     """Summarize a diff result.
 
     Returns:
@@ -109,13 +108,13 @@ def diff_summary(diff: Dict[str, list]) -> Dict[str, int]:
     }
 
 
-def print_diff_report(diff: Dict[str, list]) -> None:
+def print_diff_report(diff: dict[str, list]) -> None:
     """Print a human-readable diff report to stderr."""
     import sys
 
     summary = diff_summary(diff)
     print(f"\n{'─' * 60}", file=sys.stderr)
-    print(f"  Baseline Comparison", file=sys.stderr)
+    print("  Baseline Comparison", file=sys.stderr)
     print(f"{'─' * 60}", file=sys.stderr)
     print(f"  Baseline findings : {summary['total_baseline']}", file=sys.stderr)
     print(f"  Current findings  : {summary['total_current']}", file=sys.stderr)
@@ -125,14 +124,14 @@ def print_diff_report(diff: Dict[str, list]) -> None:
     print(f"{'─' * 60}", file=sys.stderr)
 
     if diff["new"]:
-        print(f"\n  \033[1m\033[31m[NEW] Findings not in baseline:\033[0m", file=sys.stderr)
+        print("\n  \033[1m\033[31m[NEW] Findings not in baseline:\033[0m", file=sys.stderr)
         for f in diff["new"]:
             sev = f.severity
             print(f"    [{sev}] {f.rule_id}: {f.name} @ {f.file_path}",
                   file=sys.stderr)
 
     if diff["fixed"]:
-        print(f"\n  \033[1m\033[32m[FIXED] Findings resolved since baseline:\033[0m",
+        print("\n  \033[1m\033[32m[FIXED] Findings resolved since baseline:\033[0m",
               file=sys.stderr)
         for d in diff["fixed"]:
             sev = d.get("severity", "?")

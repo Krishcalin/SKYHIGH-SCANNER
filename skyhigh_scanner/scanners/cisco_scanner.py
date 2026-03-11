@@ -15,11 +15,11 @@ from __future__ import annotations
 
 import re
 
-from ..core.scanner_base import ScannerBase
 from ..core.credential_manager import CredentialManager
 from ..core.ip_utils import expand_ip_range
-from ..core.transport import NetmikoTransport, SNMPTransport, HAS_NETMIKO, HAS_PYSNMP
-from ..core.version_utils import parse_ver, version_in_range
+from ..core.scanner_base import ScannerBase
+from ..core.transport import HAS_NETMIKO, HAS_PYSNMP, NetmikoTransport
+from ..core.version_utils import version_in_range
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # CVE Database — IOS / IOS-XE (expandable via cve_data/)

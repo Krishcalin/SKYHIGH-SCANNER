@@ -1,8 +1,6 @@
 """Tests for incremental CVE sync functionality."""
 
-import json
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -130,7 +128,7 @@ class TestParseIso:
 @pytest.mark.skipif(not HAS_REQUESTS, reason="requests not installed")
 class TestResolvePlatforms:
     def test_resolve_all(self, tmp_cve_db):
-        from skyhigh_scanner.core.cve_sync import CVESync, CPE_QUERIES
+        from skyhigh_scanner.core.cve_sync import CPE_QUERIES, CVESync
         db = CVEDatabase(db_path=tmp_cve_db)
         db.open()
         try:

@@ -3,7 +3,6 @@
 import pytest
 
 from skyhigh_scanner.core.reporting import (
-    HAS_WEASYPRINT,
     SEVERITY_BADGE,
     THEME_COLORS,
     _build_charts_data,
@@ -349,6 +348,7 @@ class TestGeneratePdfReport:
     def _mock_weasyprint(self, monkeypatch):
         """Enable weasyprint mock so generate_pdf_report doesn't skip or fail."""
         from unittest.mock import MagicMock
+
         import skyhigh_scanner.core.reporting as rmod
 
         fake_pdf = b"%PDF-1.4 fake pdf content for testing"

@@ -19,9 +19,12 @@ from __future__ import annotations
 
 import argparse
 import sys
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 from . import VERSION
+
+if TYPE_CHECKING:
+    from .core.credential_manager import CredentialManager
 
 
 def _build_parser(
@@ -92,7 +95,7 @@ Plugins:
     cve_import.add_argument("--seed-dir", help="Path to seed JSON directory")
     cve_import.add_argument("-v", "--verbose", action="store_true")
 
-    cve_stats = sub.add_parser("cve-stats", help="Show CVE database statistics")
+    sub.add_parser("cve-stats", help="Show CVE database statistics")
 
     epss_sync = sub.add_parser("epss-sync", help="Fetch/update EPSS scores from FIRST.org API")
     epss_sync.add_argument("-v", "--verbose", action="store_true")
@@ -184,7 +187,7 @@ def _add_scan_args(parser: argparse.ArgumentParser) -> None:
 
 
 # ── Credential setup helper ──────────────────────────────────────────
-def _setup_credentials(args) -> "CredentialManager":
+def _setup_credentials(args) -> CredentialManager:
     from .core.credential_manager import CredentialManager
 
     cm = CredentialManager()
@@ -236,10 +239,9 @@ def _setup_credentials(args) -> "CredentialManager":
 # ── Scanner dispatch ─────────────────────────────────────────────────
 def _run_scan(args) -> int:
     """Dispatch to the appropriate scanner module."""
-    from .core.credential_manager import CredentialManager
+    from .core.config import find_config, load_config, merge_config_into_args
     from .core.reporting import generate_html_report, generate_pdf_report
     from .core.scan_profiles import get_profile
-    from .core.config import find_config, load_config, merge_config_into_args
 
     # Load config file (CLI args override config values)
     config_path = find_config(getattr(args, "config_file", None))
@@ -401,7 +403,7 @@ def _run_scan(args) -> int:
     # Baseline comparison
     baseline_file = getattr(args, "baseline_file", None)
     if baseline_file:
-        from .core.baseline import load_baseline, compute_diff, print_diff_report
+        from .core.baseline import compute_diff, load_baseline, print_diff_report
         try:
             baseline = load_baseline(baseline_file)
             diff = compute_diff(scanner.findings, baseline)
@@ -482,7 +484,7 @@ def _run_cve_stats(_args) -> int:
         db.close()
 
     print(f"\n{'='*50}")
-    print(f"  SkyHigh Scanner - CVE Database Statistics")
+    print("  SkyHigh Scanner - CVE Database Statistics")
     print(f"{'='*50}")
     print(f"  Total CVEs      : {stats.get('total', 0)}")
     print(f"  CISA KEV        : {stats.get('kev', 0)}")

@@ -13,10 +13,9 @@ Range syntax examples:
 from __future__ import annotations
 
 import re
-from typing import Optional, Tuple
 
 
-def parse_ver(version_str: str) -> Tuple[int, ...]:
+def parse_ver(version_str: str) -> tuple[int, ...]:
     """Parse a version string into a comparable tuple of ints.
 
     Examples:
@@ -79,9 +78,8 @@ def version_in_range(version: str, range_str: str) -> bool:
         elif op == ">":
             if not (ver > target):
                 return False
-        elif op == ">=":
-            if not (ver >= target):
-                return False
+        elif op == ">=" and not (ver >= target):
+            return False
 
     return True
 
@@ -100,7 +98,7 @@ def compare_versions(v1: str, v2: str) -> int:
     return 0
 
 
-def is_eol(version: str, eol_versions: dict[str, str]) -> Optional[str]:
+def is_eol(version: str, eol_versions: dict[str, str]) -> str | None:
     """Check if a version matches a known end-of-life branch.
 
     Args:

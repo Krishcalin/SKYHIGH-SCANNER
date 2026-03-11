@@ -20,9 +20,7 @@ Available profiles:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Dict, FrozenSet, List, Optional
-
+from dataclasses import dataclass
 
 # ── Check categories ──────────────────────────────────────────────────
 # Each scanner method maps to one of these categories.  Profiles
@@ -68,8 +66,8 @@ class ScanProfile:
 
     name: str
     description: str
-    enabled_categories: FrozenSet[str]
-    severity_floor: Optional[str] = None  # Override minimum severity if set
+    enabled_categories: frozenset[str]
+    severity_floor: str | None = None  # Override minimum severity if set
 
     def is_enabled(self, category: str) -> bool:
         """Check whether a check category is enabled in this profile."""
@@ -116,7 +114,7 @@ PROFILE_CVE_ONLY = ScanProfile(
 
 # ── Registry ──────────────────────────────────────────────────────────
 
-PROFILES: Dict[str, ScanProfile] = {
+PROFILES: dict[str, ScanProfile] = {
     "quick":      PROFILE_QUICK,
     "standard":   PROFILE_STANDARD,
     "full":       PROFILE_FULL,
@@ -140,6 +138,6 @@ def get_profile(name: str) -> ScanProfile:
     return profile
 
 
-def list_profiles() -> List[ScanProfile]:
+def list_profiles() -> list[ScanProfile]:
     """Return all available profiles sorted by name."""
     return sorted(PROFILES.values(), key=lambda p: p.name)

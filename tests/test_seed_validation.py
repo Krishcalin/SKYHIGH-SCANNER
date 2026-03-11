@@ -20,7 +20,7 @@ def _load_seed_files():
     """Load all seed JSON files and return (filename, entries) pairs."""
     results = []
     for path in sorted(SEED_DIR.glob("*.json")):
-        with open(path, "r", encoding="utf-8") as fh:
+        with open(path, encoding="utf-8") as fh:
             data = json.load(fh)
         if isinstance(data, dict):
             data = data.get("cves", [])
@@ -44,7 +44,7 @@ class TestSeedFileIntegrity:
     def test_all_files_valid_json(self):
         """Every .json file in seed/ must parse without error."""
         for path in SEED_DIR.glob("*.json"):
-            with open(path, "r", encoding="utf-8") as fh:
+            with open(path, encoding="utf-8") as fh:
                 data = json.load(fh)  # will raise on invalid JSON
             assert isinstance(data, (list, dict)), f"{path.name}: root must be list or dict"
 
@@ -163,6 +163,6 @@ class TestBenchmarkFiles:
     @pytest.mark.skipif(not BENCHMARK_DIR.exists(), reason="Benchmark dir not found")
     def test_benchmark_files_valid_json(self):
         for path in BENCHMARK_DIR.glob("*.json"):
-            with open(path, "r", encoding="utf-8") as fh:
+            with open(path, encoding="utf-8") as fh:
                 data = json.load(fh)
             assert isinstance(data, (list, dict)), f"{path.name}: invalid structure"

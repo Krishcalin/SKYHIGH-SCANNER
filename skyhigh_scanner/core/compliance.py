@@ -17,8 +17,6 @@ Usage::
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional
-
 # ── Framework metadata ────────────────────────────────────────────────
 
 FRAMEWORKS = {
@@ -32,7 +30,7 @@ FRAMEWORKS = {
 # Each CWE maps to a dict of {framework_key: [control_ids]}.
 # Coverage: ~80 CWEs covering the most common vulnerability classes.
 
-CWE_MAP: Dict[str, Dict[str, List[str]]] = {
+CWE_MAP: dict[str, dict[str, list[str]]] = {
     # ── Injection ──────────────────────────────────────────────────
     "CWE-78": {  # OS Command Injection
         "nist_800_53": ["SI-10", "SI-3"],
@@ -421,7 +419,7 @@ CWE_MAP: Dict[str, Dict[str, List[str]]] = {
 # Used when a finding has no CWE or the CWE isn't in CWE_MAP.
 # Keys are substrings matched against finding.category (case-insensitive).
 
-CATEGORY_MAP: Dict[str, Dict[str, List[str]]] = {
+CATEGORY_MAP: dict[str, dict[str, list[str]]] = {
     "authentication": {
         "nist_800_53": ["IA-2", "IA-5"],
         "iso_27001": ["A.8.5", "A.5.17"],
@@ -625,7 +623,7 @@ CATEGORY_MAP: Dict[str, Dict[str, List[str]]] = {
 
 # ── Core mapping functions ────────────────────────────────────────────
 
-def _extract_cwe_id(cwe: Optional[str]) -> Optional[str]:
+def _extract_cwe_id(cwe: str | None) -> str | None:
     """Normalise a CWE string to 'CWE-NNN' format.
 
     Handles: 'CWE-89', 'cwe-89', '89', 'CWE89'.
@@ -643,12 +641,12 @@ def _extract_cwe_id(cwe: Optional[str]) -> Optional[str]:
     return None
 
 
-def _lookup_cwe(cwe_id: str) -> Dict[str, List[str]]:
+def _lookup_cwe(cwe_id: str) -> dict[str, list[str]]:
     """Look up a CWE ID in the mapping table."""
     return CWE_MAP.get(cwe_id, {})
 
 
-def _lookup_category(category: str) -> Dict[str, List[str]]:
+def _lookup_category(category: str) -> dict[str, list[str]]:
     """Match a finding category against CATEGORY_MAP (substring, case-insensitive)."""
     cat_lower = category.lower()
     for key, mapping in CATEGORY_MAP.items():
@@ -657,8 +655,8 @@ def _lookup_category(category: str) -> Dict[str, List[str]]:
     return {}
 
 
-def map_finding(cwe: Optional[str] = None,
-                category: str = "") -> Dict[str, List[str]]:
+def map_finding(cwe: str | None = None,
+                category: str = "") -> dict[str, list[str]]:
     """Resolve compliance controls for a finding.
 
     Tries CWE-based mapping first; falls back to category-based mapping.
@@ -702,7 +700,7 @@ def enrich_findings(findings: list) -> int:
 # ── Reporting helpers ─────────────────────────────────────────────────
 
 def compliance_summary(findings: list,
-                       frameworks: Optional[List[str]] = None) -> Dict[str, Dict[str, int]]:
+                       frameworks: list[str] | None = None) -> dict[str, dict[str, int]]:
     """Aggregate compliance control counts across all findings.
 
     Args:
@@ -714,10 +712,10 @@ def compliance_summary(findings: list,
         ``{framework_key: {control_id: finding_count}}`` sorted by count desc.
     """
     fw_keys = frameworks or list(FRAMEWORKS.keys())
-    result: Dict[str, Dict[str, int]] = {}
+    result: dict[str, dict[str, int]] = {}
 
     for fw in fw_keys:
-        controls: Dict[str, int] = {}
+        controls: dict[str, int] = {}
         for f in findings:
             comp = getattr(f, "compliance", None)
             if not comp:
@@ -731,7 +729,7 @@ def compliance_summary(findings: list,
 
 
 def filter_by_framework(findings: list, framework: str,
-                        controls: Optional[List[str]] = None) -> list:
+                        controls: list[str] | None = None) -> list:
     """Filter findings to those mapped to a specific framework.
 
     Args:
@@ -758,8 +756,8 @@ def filter_by_framework(findings: list, framework: str,
     return result
 
 
-def format_controls(compliance: Optional[Dict[str, List[str]]],
-                    framework: Optional[str] = None) -> str:
+def format_controls(compliance: dict[str, list[str]] | None,
+                    framework: str | None = None) -> str:
     """Format compliance controls as a human-readable string.
 
     Args:

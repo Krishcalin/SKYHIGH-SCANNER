@@ -9,11 +9,10 @@ Checks: default credentials, Manager app exposure, AJP Ghostcat,
 from __future__ import annotations
 
 import re
-from typing import List
 
+from ..core.credential_manager import CredentialManager
 from ..core.finding import Finding
 from ..core.transport import HTTPTransport
-from ..core.credential_manager import CredentialManager
 from ..core.version_utils import version_in_range
 
 TOMCAT_CVES = [
@@ -54,8 +53,8 @@ DEFAULT_CREDS = [
 
 def run_checks(http: HTTPTransport, url: str,
                credentials: CredentialManager = None,
-               verbose: bool = False) -> List[Finding]:
-    findings: List[Finding] = []
+               verbose: bool = False) -> list[Finding]:
+    findings: list[Finding] = []
     headers = http.get_headers()
     server = headers.get("Server", "")
 

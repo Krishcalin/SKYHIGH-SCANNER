@@ -8,12 +8,11 @@ Checks: EOL runtime versions, web.config debug mode, ViewState MAC,
 
 from __future__ import annotations
 
-import re
 import json
-from typing import List
+import re
 
-from ..core.finding import Finding
 from ..core.credential_manager import CredentialManager
+from ..core.finding import Finding
 
 DOTNET_EOL = {
     "2.1": "2021-08-21", "2.2": "2019-12-23", "3.0": "2020-03-03",
@@ -24,8 +23,8 @@ DOTNET_EOL = {
 
 def run_checks(transport, host_ip: str, version_info: str,
                credentials: CredentialManager = None,
-               verbose: bool = False) -> List[Finding]:
-    findings: List[Finding] = []
+               verbose: bool = False) -> list[Finding]:
+    findings: list[Finding] = []
 
     # Parse .NET runtimes
     for line in version_info.strip().split("\n"):
