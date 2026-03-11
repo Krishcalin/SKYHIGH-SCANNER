@@ -58,8 +58,20 @@ skyhigh_scanner/
 ├── benchmarks/          # CIS benchmark check scripts
 ├── cve_data/
 │   ├── cpe_mappings.json       # 49 CPE strings for NVD sync
-│   └── seed/                   # 21 seed JSON files (457 CVEs)
+│   └── seed/                   # 21 seed JSON files (451 CVEs)
 └── templates/           # HTML report templates
+
+tests/                   # 166 pytest tests
+├── conftest.py                # Shared fixtures
+├── test_version_utils.py      # 20 tests
+├── test_ip_utils.py           # 16 tests
+├── test_finding.py            # 10 tests
+├── test_credential_manager.py # 18 tests
+├── test_scanner_base.py       # 17 tests
+├── test_cve_database.py       # 14 tests
+├── test_reporting.py          # 11 tests
+├── test_seed_validation.py    # 12 tests
+└── test_cli.py                # 25 tests
 ```
 
 ### CLI Commands
@@ -86,20 +98,20 @@ python -m skyhigh_scanner cve-stats                         # Show CVE stats
 - **Rule ID formats**: `WEB-APACHE-001`, `CISCO-AUTH-001`, `DB-MONGO-NET-001`, `MW-JAVA-VER-001`
 
 ## CVE Database
-- **457 curated CVEs** across 21 seed files, 35 platforms
+- **451 curated CVEs** across 21 seed files, 35 platforms (deduplicated in Phase 3)
 - **146 CISA KEV** flagged entries
-- **SQLite** backend at `~/.skyhigh_scanner/cve.db`
+- **SQLite** backend at `skyhigh_scanner/cve_data/skyhigh_scanner.db`
 - **NVD API 2.0** sync with rate limiting (6s without key, 0.6s with key)
 - **Vendor feeds**: MSRC, Cisco PSIRT, Ubuntu USN, Red Hat RHSA (stubs)
 
-### Seed Files (21 files, 457 unique CVEs)
+### Seed Files (21 files, 451 unique CVEs)
 | File | CVEs | Platforms |
 |------|------|-----------|
 | windows_os_cves_seed.json | 39 | windows, exchange_server |
 | windows_apps_cves_seed.json | 38 | windows, exchange_server |
-| linux_kernel_cves_seed.json | 28 | linux_kernel, struts |
-| linux_packages_cves_seed.json | 28 | bash, sudo, polkit, glibc, systemd, curl, openssh, openssl |
-| cisco_cves_seed.json | 40 | cisco_ios, cisco_asa, cisco_ftd |
+| linux_kernel_cves_seed.json | 27 | linux_kernel |
+| linux_packages_cves_seed.json | 23 | bash, sudo, polkit, glibc, systemd, curl |
+| cisco_cves_seed.json | 39 | cisco_ios, cisco_asa, cisco_ftd |
 | apache_httpd_cves_seed.json | 25 | apache_httpd |
 | nginx_cves_seed.json | 15 | nginx |
 | iis_cves_seed.json | 15 | iis |
@@ -137,8 +149,44 @@ python -m skyhigh_scanner cve-stats                         # Show CVE stats
 - Fixed importer to handle both array and dict-wrapped JSON formats
 - 35 platforms covered, 146 CISA KEV entries
 
+### Phase 3 — Tests & CI Pipeline
+- **166 pytest tests** across 9 test files, all passing
+- **GitHub Actions CI**: test matrix (Python 3.9-3.12), ruff lint, seed validation
+- **Coverage**: finding.py 100%, reporting.py 100%, credential_manager.py 98%, ip_utils.py 97%, version_utils.py 94%, scanner_base.py 93%, cve_database.py 85%
+- **Seed data fixes**: removed 6 duplicate CVEs (1 cisco, 1 linux_kernel, 4 linux_packages)
+- **New files**: `requirements-dev.txt`, `pyproject.toml`, `.github/workflows/ci.yml`, 9 test files + conftest
+- **Known limitation**: `parse_ver()` strips non-numeric suffixes (e.g. OpenSSL `1.0.1f` → `(1,0,1)`), so letter-based version ranges don't work — seed data should use numeric ranges
+
+## Testing
+```bash
+pip install -r requirements-dev.txt    # pytest, pytest-cov, ruff, mypy
+pytest                                  # Run all 166 tests
+pytest --cov=skyhigh_scanner.core       # With coverage
+pytest tests/test_seed_validation.py    # Seed integrity only
+ruff check skyhigh_scanner/ tests/      # Lint
+```
+
+### Test Files
+| File | Tests | Module |
+|------|-------|--------|
+| `tests/test_version_utils.py` | 20 | `parse_ver`, `version_in_range`, `compare_versions`, `is_eol` |
+| `tests/test_ip_utils.py` | 16 | `expand_ip_range`, `is_private`, `reverse_dns` |
+| `tests/test_finding.py` | 10 | Finding dataclass, serialisation, display |
+| `tests/test_credential_manager.py` | 18 | Setters, has_*, summary, file/env loading |
+| `tests/test_scanner_base.py` | 17 | `_add`, filter, summary, timing, exit code, JSON/CSV export |
+| `tests/test_cve_database.py` | 14 | SQLite schema, seed import, version lookup, KEV, stats |
+| `tests/test_reporting.py` | 11 | HTML generation, themes, XSS escaping |
+| `tests/test_seed_validation.py` | 12 | JSON schema, CVE format, CVSS/EPSS ranges, dedup |
+| `tests/test_cli.py` | 25 | All argparse subcommands, flags, defaults |
+
+### CI Pipeline (`.github/workflows/ci.yml`)
+- **test**: Matrix Python 3.9, 3.10, 3.11, 3.12 — `pytest --cov`
+- **lint**: `ruff check` + `ruff format --check`
+- **seed-validation**: Dedicated seed file integrity job
+- Triggers: push/PR to `main`
+
 ## Conventions
-- **No duplicate CVE IDs** across seed files (INSERT OR REPLACE resolves conflicts)
+- **No duplicate CVE IDs** per platform across seed files (cross-platform dupes are allowed, e.g. CVE-2023-44487)
 - **Version ranges must be accurate** — they drive actual scan results
 - **CISA KEV priority**: KEV > CVSS >= 9.0 > CVSS >= 7.0 > widely exploited
 - **Platform keys** must match across seed files, CPE_QUERIES, cpe_mappings.json, and scanner queries
@@ -147,3 +195,4 @@ python -m skyhigh_scanner cve-stats                         # Show CVE stats
 ## Dependencies
 - **Required**: Python 3.9+ (stdlib only for core)
 - **Optional**: `requests` (CVE sync, HTTP probing), `paramiko` (SSH), `pysnmp-lextudio` (SNMP), `pywinrm` (WinRM), `impacket` (SMB)
+- **Dev/Test**: `pytest`, `pytest-cov`, `ruff`, `mypy` (see `requirements-dev.txt`)

@@ -13,6 +13,7 @@
   <a href="#supported-platforms"><img src="https://img.shields.io/badge/platforms-23-orange.svg" alt="23 Platforms" /></a>
   <a href="#cve-database"><img src="https://img.shields.io/badge/CVEs-32%2C000+-red.svg" alt="32,000+ CVEs" /></a>
   <a href="#features"><img src="https://img.shields.io/badge/rules-~800-purple.svg" alt="~800 Rules" /></a>
+  <a href="#testing"><img src="https://img.shields.io/badge/tests-166_passing-brightgreen.svg" alt="166 Tests" /></a>
 </p>
 
 ---
@@ -30,6 +31,7 @@
 - [Scan Modules](#scan-modules)
 - [HTML Reports](#html-reports)
 - [Project Structure](#project-structure)
+- [Testing](#testing)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -217,7 +219,7 @@ pip install -r requirements.txt
 python -m skyhigh_scanner cve-import
 ```
 
-This loads 56 curated CVEs (32 CISA KEV flagged) from the bundled seed files.
+This loads 451 curated CVEs (146 CISA KEV flagged) from the bundled seed files.
 
 ### 2. Check CVE Database Stats
 
@@ -348,13 +350,13 @@ SkyHigh Scanner maintains a local SQLite database of CVEs for offline version-ba
 
 | Source | Coverage | Method |
 |--------|----------|--------|
-| **Seed files** | 56 curated CVEs (bundled) | `cve-import` command |
-| **NVD API 2.0** | ~32,000 CVEs (2010-2025) | `cve-sync` command, 37 CPE queries |
+| **Seed files** | 451 curated CVEs (bundled, 21 files) | `cve-import` command |
+| **NVD API 2.0** | ~32,000 CVEs (2010-2025) | `cve-sync` command, 49 CPE queries |
 | **CISA KEV** | 1,100+ actively exploited CVEs | Overlay during sync |
 
 ### CPE Coverage
 
-The scanner syncs CVEs for 37 CPE (Common Platform Enumeration) strings covering:
+The scanner syncs CVEs for 49 CPE (Common Platform Enumeration) strings covering:
 
 - Microsoft Windows (Server 2008-2022, Desktop 7-11)
 - Linux distributions (Ubuntu, RHEL, CentOS, Debian, SUSE)
@@ -420,15 +422,32 @@ SKYHIGH-SCANNER/
 ├── banner.svg                    # Project banner
 ├── LICENSE                       # MIT License
 ├── README.md                     # This file
-├── requirements.txt              # Python dependencies
+├── CLAUDE.md                     # AI assistant project context
+├── requirements.txt              # Runtime dependencies
+├── requirements-dev.txt          # Dev/test dependencies (pytest, ruff, mypy)
 ├── setup.py                      # pip install configuration
+├── pyproject.toml                # pytest, ruff, mypy configuration
+│
+├── .github/workflows/
+│   └── ci.yml                    # GitHub Actions CI (test, lint, seed validation)
+│
+├── tests/                        # Test suite (166 tests)
+│   ├── conftest.py               # Shared fixtures
+│   ├── test_version_utils.py     # Version parsing & range matching (20 tests)
+│   ├── test_ip_utils.py          # IP range expansion & DNS (16 tests)
+│   ├── test_finding.py           # Finding dataclass & serialisation (10 tests)
+│   ├── test_credential_manager.py # Credential loading & env vars (18 tests)
+│   ├── test_scanner_base.py      # Base scanner, filtering, export (17 tests)
+│   ├── test_cve_database.py      # SQLite import, lookup, KEV flagging (14 tests)
+│   ├── test_reporting.py         # HTML generation & XSS escaping (11 tests)
+│   ├── test_seed_validation.py   # Seed file integrity & dedup (12 tests)
+│   └── test_cli.py               # CLI argument parsing (25 tests)
 │
 └── skyhigh_scanner/              # Main package
     ├── __init__.py               # VERSION = "1.0.0"
     ├── __main__.py               # CLI entry point (argparse)
     │
     ├── core/                     # Shared engine
-    │   ├── __init__.py
     │   ├── finding.py            # Finding dataclass
     │   ├── scanner_base.py       # ScannerBase ABC
     │   ├── version_utils.py      # Version parsing & comparison
@@ -450,51 +469,21 @@ SKYHIGH-SCANNER/
     │   └── database_scanner.py   # Database detection & dispatch
     │
     ├── webservers/               # Web server check modules
-    │   ├── iis_checks.py
-    │   ├── apache_checks.py
-    │   ├── nginx_checks.py
-    │   ├── tomcat_checks.py
-    │   ├── weblogic_checks.py
-    │   └── websphere_checks.py
+    │   ├── iis_checks.py, apache_checks.py, nginx_checks.py
+    │   ├── tomcat_checks.py, weblogic_checks.py, websphere_checks.py
     │
     ├── middleware/                # Middleware check modules
-    │   ├── java_checks.py
-    │   ├── dotnet_checks.py
-    │   ├── php_checks.py
-    │   ├── nodejs_checks.py
-    │   ├── laravel_checks.py
-    │   └── oracle_checks.py
+    │   ├── java_checks.py, dotnet_checks.py, php_checks.py
+    │   ├── nodejs_checks.py, laravel_checks.py, oracle_checks.py
     │
     ├── databases/                # Database check modules
-    │   ├── oracle_db_checks.py
-    │   ├── mysql_checks.py
-    │   └── mongodb_checks.py
+    │   ├── oracle_db_checks.py, mysql_checks.py, mongodb_checks.py
     │
     ├── cve_data/                 # CVE data files
-    │   ├── cpe_mappings.json     # 37 CPE strings for NVD sync
-    │   └── seed/                 # Bundled seed CVEs (11 files, 56 CVEs)
-    │       ├── windows.json
-    │       ├── linux.json
-    │       ├── cisco.json
-    │       ├── webserver.json
-    │       ├── java.json
-    │       ├── dotnet.json
-    │       ├── php.json
-    │       ├── mern.json
-    │       ├── mysql.json
-    │       ├── oracle_db.json
-    │       └── laravel.json
+    │   ├── cpe_mappings.json     # 49 CPE strings for NVD sync
+    │   └── seed/                 # 21 seed JSON files (451 curated CVEs)
     │
-    ├── benchmarks/               # CIS benchmark definitions
-    │   ├── cis_windows.json
-    │   ├── cis_linux.json
-    │   ├── cis_cisco.json
-    │   ├── cis_oracle_db.json
-    │   ├── cis_mysql.json
-    │   └── cis_mongodb.json
-    │
-    └── templates/                # Report templates
-        └── report_template.html
+    └── benchmarks/               # CIS benchmark definitions (6 JSON files)
 ```
 
 ---
@@ -508,17 +497,79 @@ SKYHIGH-SCANNER/
 
 ---
 
+## Testing
+
+SkyHigh Scanner has a comprehensive test suite covering all core modules.
+
+### Running Tests
+
+```bash
+# Install dev dependencies
+pip install -r requirements-dev.txt
+
+# Run all tests
+pytest
+
+# Run with coverage report
+pytest --cov=skyhigh_scanner --cov-report=term-missing
+
+# Run a specific test file
+pytest tests/test_version_utils.py
+
+# Run seed validation only
+pytest tests/test_seed_validation.py -v
+```
+
+### Test Coverage
+
+| Module | Tests | Coverage |
+|--------|-------|----------|
+| `core/finding.py` | 10 | 100% |
+| `core/reporting.py` | 11 | 100% |
+| `core/credential_manager.py` | 18 | 98% |
+| `core/ip_utils.py` | 16 | 97% |
+| `core/version_utils.py` | 20 | 94% |
+| `core/scanner_base.py` | 17 | 93% |
+| `core/cve_database.py` | 14 | 85% |
+| Seed file validation | 12 | N/A |
+| CLI argument parsing | 25 | N/A |
+| **Total** | **166** | |
+
+### CI Pipeline
+
+GitHub Actions runs automatically on push/PR to `main`:
+
+- **Test** -- Matrix across Python 3.9, 3.10, 3.11, 3.12 with coverage
+- **Lint** -- `ruff check` for code quality
+- **Seed Validation** -- Schema, format, and duplicate checks on all CVE seed files
+
+### Seed File Validation
+
+The test suite validates all 21 seed JSON files for:
+- Valid JSON structure (array or `{"cves": [...]}` wrapper)
+- Required fields: `cve_id`, `platform`, `severity`, `published`, `name`
+- Valid severity values (`CRITICAL`, `HIGH`, `MEDIUM`, `LOW`, `INFO`)
+- CVE ID format (`CVE-YYYY-NNNNN`)
+- CVSS scores in 0.0-10.0 range
+- EPSS scores in 0.0-1.0 range
+- No duplicate CVE IDs within files
+- No same-platform duplicates across files
+
+---
+
 ## Contributing
 
 Contributions are welcome! Here's how to get started:
 
 1. **Fork** the repository
 2. **Create** a feature branch: `git checkout -b feature/my-feature`
-3. **Make** your changes
-4. **Test** your changes against a target environment
-5. **Commit**: `git commit -m "Add my feature"`
-6. **Push**: `git push origin feature/my-feature`
-7. **Open** a Pull Request
+3. **Install** dev dependencies: `pip install -r requirements-dev.txt`
+4. **Make** your changes
+5. **Run tests**: `pytest` -- all 166 tests must pass
+6. **Lint**: `ruff check skyhigh_scanner/ tests/`
+7. **Commit**: `git commit -m "Add my feature"`
+8. **Push**: `git push origin feature/my-feature`
+9. **Open** a Pull Request
 
 ### Adding a New Scanner Module
 

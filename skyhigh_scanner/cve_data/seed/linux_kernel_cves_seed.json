@@ -295,20 +295,6 @@
       "affected": ">=5.10,<5.15"
     },
     {
-      "cve_id": "CVE-2017-5638",
-      "platform": "struts",
-      "severity": "CRITICAL",
-      "cvss_v3": 10.0,
-      "cwe": "CWE-20",
-      "published": "2017-03-10",
-      "name": "Apache Struts2 Jakarta Multipart Parser RCE",
-      "description": "Apache Struts 2 Jakarta Multipart parser allows remote code execution via a crafted Content-Type, Content-Disposition, or Content-Length HTTP header. Used in the Equifax breach.",
-      "recommendation": "Upgrade Apache Struts to >= 2.3.32 or >= 2.5.10.1.",
-      "cisa_kev": true,
-      "epss_score": 0.97,
-      "affected": ">=2.3.0,<2.3.32"
-    },
-    {
       "cve_id": "CVE-2024-36971",
       "platform": "linux_kernel",
       "severity": "HIGH",

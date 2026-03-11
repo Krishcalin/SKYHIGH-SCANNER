@@ -211,20 +211,6 @@
       "affected": ">=3.6.0,<4.13.17"
     },
     {
-      "cve_id": "CVE-2022-1292",
-      "platform": "openssl",
-      "severity": "CRITICAL",
-      "cvss_v3": 9.8,
-      "cwe": "CWE-78",
-      "published": "2022-05-03",
-      "name": "OpenSSL c_rehash Command Injection",
-      "description": "The c_rehash script does not properly sanitise shell metacharacters to prevent command injection. This script is distributed by some OSes as part of OpenSSL.",
-      "recommendation": "Upgrade OpenSSL to >= 1.0.2ze, 1.1.1o, or 3.0.3.",
-      "cisa_kev": false,
-      "epss_score": 0.88,
-      "affected": ">=1.0.0,<3.0.3"
-    },
-    {
       "cve_id": "CVE-2024-47176",
       "platform": "linux_kernel",
       "severity": "CRITICAL",
@@ -253,20 +239,6 @@
       "affected": ">=0.113,<0.119"
     },
     {
-      "cve_id": "CVE-2021-41617",
-      "platform": "openssh",
-      "severity": "HIGH",
-      "cvss_v3": 7.0,
-      "cwe": "CWE-269",
-      "published": "2021-09-26",
-      "name": "OpenSSH AuthorizedKeysCommand/AuthorizedPrincipalsCommand Privilege Escalation",
-      "description": "sshd in OpenSSH 6.2 through 8.7 allows certain non-default configurations to fail to properly initialize supplementary groups, enabling privilege escalation when AuthorizedKeysCommand or AuthorizedPrincipalsCommand is configured.",
-      "recommendation": "Upgrade OpenSSH to >= 8.8.",
-      "cisa_kev": false,
-      "epss_score": 0.05,
-      "affected": ">=6.2,<8.8"
-    },
-    {
       "cve_id": "CVE-2021-45960",
       "platform": "linux_kernel",
       "severity": "CRITICAL",
@@ -279,20 +251,6 @@
       "cisa_kev": false,
       "epss_score": 0.28,
       "affected": ">=1.0,<2.4.3"
-    },
-    {
-      "cve_id": "CVE-2024-6387",
-      "platform": "openssh",
-      "severity": "CRITICAL",
-      "cvss_v3": 8.1,
-      "cwe": "CWE-362",
-      "published": "2024-07-01",
-      "name": "RegreSSHion OpenSSH Signal Handler Race Condition",
-      "description": "A signal handler race condition in OpenSSH's sshd server. An unauthenticated attacker can achieve remote code execution as root on glibc-based Linux systems. Regression of CVE-2006-5051.",
-      "recommendation": "Upgrade OpenSSH to >= 9.8p1.",
-      "cisa_kev": true,
-      "epss_score": 0.91,
-      "affected": ">=8.5,<9.8"
     },
     {
       "cve_id": "CVE-2022-29155",
@@ -321,20 +279,6 @@
       "cisa_kev": true,
       "epss_score": 0.97,
       "affected": ">=5.0,<7.0"
-    },
-    {
-      "cve_id": "CVE-2022-0778",
-      "platform": "openssl",
-      "severity": "HIGH",
-      "cvss_v3": 7.5,
-      "cwe": "CWE-835",
-      "published": "2022-03-15",
-      "name": "OpenSSL BN_mod_sqrt Infinite Loop DoS",
-      "description": "The BN_mod_sqrt() function in OpenSSL contains a bug that can cause it to loop forever for non-prime moduli. A crafted certificate can trigger a denial of service.",
-      "recommendation": "Upgrade OpenSSL to >= 1.0.2zd, 1.1.1n, or 3.0.2.",
-      "cisa_kev": false,
-      "epss_score": 0.55,
-      "affected": ">=1.0.0,<3.0.2"
     },
     {
       "cve_id": "CVE-2023-25690",
