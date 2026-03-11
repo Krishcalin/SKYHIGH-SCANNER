@@ -39,6 +39,7 @@ THEME_COLORS = {
     "webserver":  ("#2ECC71", "#27AE60"),   # Green
     "middleware": ("#9B59B6", "#8E44AD"),   # Purple
     "database":   ("#E67E22", "#D35400"),   # Orange
+    "dast":       ("#E74C3C", "#C0392B"),   # Red — active attack scanner
     "generic":    ("#34495E", "#2C3E50"),   # Dark grey-blue
 }
 

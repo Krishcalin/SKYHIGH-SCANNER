@@ -1,0 +1,289 @@
+"""
+DAST configuration and safety controls.
+
+Defines the scope policy (what URLs are in-scope), rate limiter,
+and overall DAST configuration that governs scanner behaviour.
+"""
+
+from __future__ import annotations
+
+import threading
+import time
+from dataclasses import dataclass, field
+from urllib.parse import urlparse
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Scope Policy
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+class ScopeViolation(Exception):
+    """Raised when a request targets an out-of-scope URL."""
+
+
+@dataclass
+class ScopePolicy:
+    """Defines what URLs the DAST scanner is allowed to touch.
+
+    Args:
+        allowed_hosts: Exact hostnames or IPs within scope.
+        allowed_path_prefixes: Only paths starting with these are in scope.
+            Empty list means all paths are allowed.
+        excluded_paths: Paths that must never be tested (e.g. /logout).
+        excluded_extensions: File extensions to skip (e.g. .pdf, .zip).
+        max_depth: Maximum crawl depth from the seed URL.
+        follow_subdomains: Whether *.example.com is in scope when
+            example.com is an allowed host.
+    """
+
+    allowed_hosts: list[str] = field(default_factory=list)
+    allowed_path_prefixes: list[str] = field(default_factory=list)
+    excluded_paths: list[str] = field(default_factory=lambda: [
+        "/logout", "/signout", "/sign-out", "/log-out",
+        "/api/logout", "/auth/logout",
+    ])
+    excluded_extensions: list[str] = field(default_factory=lambda: [
+        ".pdf", ".zip", ".gz", ".tar", ".exe", ".msi", ".dmg",
+        ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".webp",
+        ".mp4", ".mp3", ".avi", ".mov", ".woff", ".woff2", ".ttf", ".eot",
+    ])
+    max_depth: int = 5
+    follow_subdomains: bool = False
+
+    def is_host_allowed(self, hostname: str) -> bool:
+        """Check if a hostname is within scope."""
+        if not self.allowed_hosts:
+            return False
+
+        hostname = hostname.lower()
+        for allowed in self.allowed_hosts:
+            allowed = allowed.lower()
+            if hostname == allowed:
+                return True
+            if self.follow_subdomains and hostname.endswith(f".{allowed}"):
+                return True
+        return False
+
+    def is_path_allowed(self, path: str) -> bool:
+        """Check if a URL path is within scope."""
+        path_lower = path.lower()
+
+        # Check excluded paths
+        for excluded in self.excluded_paths:
+            if path_lower == excluded.lower() or path_lower.startswith(excluded.lower()):
+                return False
+
+        # Check excluded extensions
+        for ext in self.excluded_extensions:
+            if path_lower.endswith(ext.lower()):
+                return False
+
+        # Check allowed path prefixes (empty means all allowed)
+        if not self.allowed_path_prefixes:
+            return True
+        return any(
+            path_lower.startswith(prefix.lower())
+            for prefix in self.allowed_path_prefixes
+        )
+
+    def is_url_in_scope(self, url: str) -> bool:
+        """Check if a full URL is within scope."""
+        parsed = urlparse(url)
+        hostname = parsed.hostname or ""
+        path = parsed.path or "/"
+        return self.is_host_allowed(hostname) and self.is_path_allowed(path)
+
+    @classmethod
+    def from_target(cls, target_url: str, **kwargs) -> ScopePolicy:
+        """Create a scope policy from a target URL.
+
+        Automatically adds the target's hostname to the allowed hosts.
+        """
+        parsed = urlparse(target_url)
+        hostname = parsed.hostname or ""
+        hosts = kwargs.pop("allowed_hosts", [])
+        if hostname and hostname not in hosts:
+            hosts.append(hostname)
+        return cls(allowed_hosts=hosts, **kwargs)
+
+    @classmethod
+    def localhost(cls) -> ScopePolicy:
+        """Permissive scope for localhost testing."""
+        return cls(
+            allowed_hosts=["localhost", "127.0.0.1", "::1", "0.0.0.0"],
+            max_depth=10,
+        )
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Rate Limiter (token bucket)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+class RateLimiter:
+    """Thread-safe token bucket rate limiter.
+
+    Args:
+        rate: Maximum requests per second.
+        burst: Maximum burst size (defaults to rate).
+    """
+
+    def __init__(self, rate: float = 10.0, burst: int | None = None):
+        self.rate = max(rate, 0.1)
+        self.burst = burst or max(int(self.rate), 1)
+        self._tokens: float = float(self.burst)
+        self._last_refill = time.monotonic()
+        self._lock = threading.Lock()
+
+    def acquire(self) -> None:
+        """Block until a token is available."""
+        while True:
+            with self._lock:
+                self._refill()
+                if self._tokens >= 1.0:
+                    self._tokens -= 1.0
+                    return
+            # Sleep for the time needed to generate one token
+            time.sleep(1.0 / self.rate)
+
+    def _refill(self) -> None:
+        """Add tokens based on elapsed time."""
+        now = time.monotonic()
+        elapsed = now - self._last_refill
+        self._tokens = min(
+            float(self.burst),
+            self._tokens + elapsed * self.rate,
+        )
+        self._last_refill = now
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Request Counter
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+class RequestLimitExceeded(Exception):
+    """Raised when the maximum request count is reached."""
+
+
+class RequestCounter:
+    """Thread-safe counter that enforces a hard request cap."""
+
+    def __init__(self, max_requests: int = 10000):
+        self.max_requests = max_requests
+        self._count = 0
+        self._lock = threading.Lock()
+
+    def increment(self) -> int:
+        """Increment and return the new count. Raises if limit exceeded."""
+        with self._lock:
+            if self._count >= self.max_requests:
+                raise RequestLimitExceeded(
+                    f"Maximum request limit ({self.max_requests}) reached. "
+                    "Increase --dast-max-requests to continue."
+                )
+            self._count += 1
+            return self._count
+
+    @property
+    def count(self) -> int:
+        return self._count
+
+    def reset(self) -> None:
+        with self._lock:
+            self._count = 0
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# DAST Configuration
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+@dataclass
+class DastConfig:
+    """Master configuration for a DAST scan.
+
+    Args:
+        scope: Scope policy defining what URLs are in scope.
+        rate_limit_rps: Maximum requests per second.
+        max_requests: Hard cap on total requests.
+        request_timeout: Per-request timeout in seconds.
+        auth_mode: Authentication method (none, cookie, bearer, basic, form).
+        auth_token: Bearer token or session cookie value.
+        auth_form_url: Login form URL for form-based auth.
+        auth_form_data: Login form field values.
+        crawl_enabled: Whether to crawl before testing.
+        passive_only: If True, skip active injection tests.
+        custom_headers: Extra headers added to every request.
+        accept_risk: If True, suppress the pre-scan warning banner.
+    """
+
+    scope: ScopePolicy = field(default_factory=ScopePolicy)
+    rate_limit_rps: float = 10.0
+    max_requests: int = 10000
+    request_timeout: int = 15
+    auth_mode: str = "none"
+    auth_token: str | None = None
+    auth_form_url: str | None = None
+    auth_form_data: dict[str, str] | None = None
+    crawl_enabled: bool = True
+    passive_only: bool = False
+    custom_headers: dict[str, str] = field(default_factory=dict)
+    accept_risk: bool = False
+
+    def __post_init__(self) -> None:
+        valid_modes = {"none", "cookie", "bearer", "basic", "form"}
+        if self.auth_mode not in valid_modes:
+            raise ValueError(
+                f"Invalid auth_mode '{self.auth_mode}'. "
+                f"Must be one of: {', '.join(sorted(valid_modes))}"
+            )
+
+    @classmethod
+    def from_cli_args(cls, args) -> DastConfig:
+        """Build DastConfig from parsed argparse namespace."""
+        # Build scope
+        target = getattr(args, "target", None) or getattr(args, "ip_range", "")
+        if target and (target.startswith("http://") or target.startswith("https://")):
+            scope = ScopePolicy.from_target(
+                target,
+                max_depth=getattr(args, "dast_crawl_depth", 5),
+                follow_subdomains=getattr(args, "dast_follow_subdomains", False),
+            )
+        else:
+            # Non-URL target — create scope from hostname
+            scope = ScopePolicy.from_target(
+                f"https://{target}",
+                max_depth=getattr(args, "dast_crawl_depth", 5),
+            )
+
+        # Load scope file if provided
+        scope_file = getattr(args, "dast_scope", None)
+        if scope_file:
+            scope = _load_scope_file(scope_file)
+
+        return cls(
+            scope=scope,
+            rate_limit_rps=getattr(args, "dast_rate_limit", 10.0),
+            max_requests=getattr(args, "dast_max_requests", 10000),
+            request_timeout=getattr(args, "timeout", 15),
+            auth_mode=getattr(args, "dast_auth_mode", "none"),
+            auth_token=getattr(args, "dast_auth_token", None),
+            auth_form_url=getattr(args, "dast_login_url", None),
+            crawl_enabled=not getattr(args, "dast_no_crawl", False),
+            passive_only=getattr(args, "dast_passive_only", False),
+            accept_risk=getattr(args, "dast_accept_risk", False),
+        )
+
+
+def _load_scope_file(path: str) -> ScopePolicy:
+    """Load a ScopePolicy from a JSON file."""
+    import json
+
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+
+    return ScopePolicy(
+        allowed_hosts=data.get("allowed_hosts", []),
+        allowed_path_prefixes=data.get("allowed_path_prefixes", []),
+        excluded_paths=data.get("excluded_paths", ScopePolicy().excluded_paths),
+        excluded_extensions=data.get("excluded_extensions", ScopePolicy().excluded_extensions),
+        max_depth=data.get("max_depth", 5),
+        follow_subdomains=data.get("follow_subdomains", False),
+    )

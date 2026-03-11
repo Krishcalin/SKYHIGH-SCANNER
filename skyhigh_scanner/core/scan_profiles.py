@@ -55,6 +55,16 @@ CATEGORIES = frozenset({
     "layer2",           # Layer 2 security (DHCP snooping, etc.)
     "control_plane",    # Control plane policing
     "misc",             # Miscellaneous hardening
+    # DAST categories
+    "crawl",            # Web crawling / spidering
+    "injection",        # SQL, command, SSTI, LDAP, XPath injection
+    "xss",              # XSS testing (reflected, stored, DOM)
+    "auth_session",     # Authentication and session checks
+    "access_control",   # IDOR, privilege escalation
+    "api_security",     # REST/GraphQL API testing
+    "file_inclusion",   # Path traversal, LFI/RFI, file upload
+    "info_disclosure",  # Error pages, debug endpoints, backup files
+    "config_misconfig", # CORS, smuggling, cache poisoning, open redirect
 })
 
 

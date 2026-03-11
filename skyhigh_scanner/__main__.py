@@ -9,6 +9,7 @@ Usage:
     python -m skyhigh_scanner webserver --target https://app.example.com [options]
     python -m skyhigh_scanner middleware -r 10.0.0.0/24  [options]
     python -m skyhigh_scanner database   -r 10.0.0.0/24  [options]
+    python -m skyhigh_scanner dast       --target https://app.example.com [options]
     python -m skyhigh_scanner cve-sync   [--api-key KEY] [--since 2010]
     python -m skyhigh_scanner cve-import [--seed-dir DIR]
     python -m skyhigh_scanner cve-stats
@@ -43,6 +44,7 @@ Target types:
   webserver   Scan web servers (IIS, Apache, Nginx, Tomcat, WebLogic, WebSphere)
   middleware  Scan middleware (Java, .NET, PHP, Node.js, Laravel)
   database    Scan databases (Oracle, MySQL/MariaDB, MongoDB)
+  dast        Dynamic Application Security Testing (active web app testing)
 
 CVE management:
   cve-sync    Sync CVE database from NVD API
@@ -69,6 +71,14 @@ Plugins:
         _add_credential_args(sp)
         _add_output_args(sp)
         _add_scan_args(sp)
+
+    # ── DAST sub-command ──────────────────────────────────────────────
+    dast_sp = sub.add_parser("dast", help="DAST — Dynamic Application Security Testing")
+    _add_target_args(dast_sp)
+    _add_credential_args(dast_sp)
+    _add_output_args(dast_sp)
+    _add_scan_args(dast_sp)
+    _add_dast_args(dast_sp)
 
     # ── Plugin sub-commands ──────────────────────────────────────────
     from .core.plugin_registry import discover_plugins
@@ -163,6 +173,33 @@ def _add_output_args(parser: argparse.ArgumentParser) -> None:
                      help="Save SARIF v2.1.0 report (GitHub Code Scanning, VS Code)")
     out.add_argument("--baseline", dest="baseline_file",
                      help="Compare against a previous JSON scan (show new/fixed findings)")
+
+
+def _add_dast_args(parser: argparse.ArgumentParser) -> None:
+    dast = parser.add_argument_group("DAST Options")
+    dast.add_argument("--dast-scope",
+                      help="Scope file (JSON) with allowed hosts/paths")
+    dast.add_argument("--dast-rate-limit", type=float, default=10.0,
+                      help="Max requests per second (default: 10)")
+    dast.add_argument("--dast-max-requests", type=int, default=10000,
+                      help="Hard cap on total requests (default: 10000)")
+    dast.add_argument("--dast-crawl-depth", type=int, default=5,
+                      help="Max crawl depth (default: 5)")
+    dast.add_argument("--dast-auth-mode",
+                      choices=["none", "cookie", "bearer", "basic", "form"],
+                      default="none", help="Authentication mode")
+    dast.add_argument("--dast-auth-token",
+                      help="Bearer token, session cookie, or user:pass for basic auth")
+    dast.add_argument("--dast-login-url",
+                      help="Login form URL for form-based auth")
+    dast.add_argument("--dast-passive-only", action="store_true",
+                      help="Only passive checks (no injection payloads)")
+    dast.add_argument("--dast-no-crawl", action="store_true",
+                      help="Skip crawling, test only the target URL")
+    dast.add_argument("--dast-accept-risk", action="store_true",
+                      help="Suppress the pre-scan warning banner")
+    dast.add_argument("--dast-follow-subdomains", action="store_true",
+                      help="Include subdomains in scope")
 
 
 def _add_scan_args(parser: argparse.ArgumentParser) -> None:
@@ -323,6 +360,15 @@ def _run_scan(args) -> int:
             target=target_spec, credentials=creds,
             max_hosts=args.max_hosts, timeout=args.timeout,
             verbose=args.verbose, profile=profile,
+        )
+    elif command == "dast":
+        from .dast.config import DastConfig
+        from .scanners.dast_scanner import DastScanner
+        dast_config = DastConfig.from_cli_args(args)
+        scanner = DastScanner(
+            target=target_spec, credentials=creds,
+            timeout=args.timeout, verbose=args.verbose,
+            profile=profile, dast_config=dast_config,
         )
 
     # ── Plugin dispatch ───────────────────────────────────────────

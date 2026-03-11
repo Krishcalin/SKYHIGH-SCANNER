@@ -112,7 +112,7 @@ def _register_class(
 
     BUILTIN_COMMANDS = frozenset({
         "auto", "windows", "linux", "cisco",
-        "webserver", "middleware", "database",
+        "webserver", "middleware", "database", "dast",
         "cve-sync", "cve-import", "cve-stats", "epss-sync",
     })
     if command in BUILTIN_COMMANDS:
