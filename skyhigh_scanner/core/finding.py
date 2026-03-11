@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field, asdict
-from typing import Optional
+from typing import Dict, List, Optional
 
 
 @dataclass
@@ -39,6 +39,7 @@ class Finding:
     fix_version: Optional[str] = None   # Version that fixes the issue
     fix_kb: Optional[str] = None        # Windows KB number
     advisory: Optional[str] = None      # Vendor advisory ID
+    compliance: Optional[Dict[str, List[str]]] = None  # {framework: [controls]}
 
     # ── Serialisation ────────────────────────────────────────────────
     def to_dict(self) -> dict:

@@ -194,8 +194,8 @@ class CiscoScanner(ScannerBase):
 
     def __init__(self, target: str, credentials: CredentialManager,
                  max_hosts: int = 256, timeout: int = 30,
-                 verbose: bool = False):
-        super().__init__(verbose=verbose)
+                 verbose: bool = False, profile=None):
+        super().__init__(verbose=verbose, profile=profile)
         self.target = target
         self.credentials = credentials
         self.max_hosts = max_hosts
@@ -236,12 +236,17 @@ class CiscoScanner(ScannerBase):
             ios_version = self._extract_version(version_output)
             self._vprint(f"  IOS version: {ios_version}")
 
-            # Run checks
-            self._check_config_rules(config, host_ip, AUTH_CHECKS)
-            self._check_config_rules(config, host_ip, SSH_CONFIG_CHECKS)
-            self._check_config_rules(config, host_ip, SNMP_CHECKS)
-            self._check_config_rules(config, host_ip, SERVICE_CHECKS)
-            self._check_cves(host_ip, ios_version)
+            # Run checks (gated by scan profile)
+            if self._check_enabled("auth"):
+                self._check_config_rules(config, host_ip, AUTH_CHECKS)
+            if self._check_enabled("crypto"):
+                self._check_config_rules(config, host_ip, SSH_CONFIG_CHECKS)
+            if self._check_enabled("snmp"):
+                self._check_config_rules(config, host_ip, SNMP_CHECKS)
+            if self._check_enabled("services"):
+                self._check_config_rules(config, host_ip, SERVICE_CHECKS)
+            if self._check_enabled("cve"):
+                self._check_cves(host_ip, ios_version)
 
     def _extract_version(self, version_output: str) -> str:
         m = re.search(r"Version\s+(\S+)", version_output)

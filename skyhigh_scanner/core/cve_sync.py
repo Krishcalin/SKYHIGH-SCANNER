@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -121,16 +121,47 @@ class CVESync:
         if self.verbose:
             print(f"\033[2m[cve-sync] {msg}\033[0m", file=sys.stderr)
 
+    # NVD API limits date ranges to 120 days
+    NVD_MAX_RANGE_DAYS = 120
+
     # ── NVD API sync ─────────────────────────────────────────────────
     def sync_platform(self, platform: str, cpe_string: str,
                       since_year: int = 2010) -> int:
-        """Fetch all CVEs for a platform from NVD API.
+        """Fetch all CVEs for a platform from NVD API by publication date.
 
         Returns:
             Number of CVEs imported.
         """
         self._log(f"Syncing {platform} ({cpe_string})...")
         start_date = f"{since_year}-01-01T00:00:00.000"
+        return self._fetch_nvd_paginated(
+            platform, cpe_string,
+            date_key_start="pubStartDate", date_start=start_date,
+            date_key_end="pubEndDate", date_end="2026-12-31T23:59:59.999",
+        )
+
+    def sync_platform_modified(self, platform: str, cpe_string: str,
+                               since: str, until: str) -> int:
+        """Fetch CVEs for a platform modified within a date range.
+
+        Args:
+            since: ISO 8601 start datetime (e.g. '2025-01-15T00:00:00.000').
+            until: ISO 8601 end datetime.
+
+        Returns:
+            Number of CVEs imported/updated.
+        """
+        self._log(f"Incremental sync {platform} ({since[:10]} → {until[:10]})...")
+        return self._fetch_nvd_paginated(
+            platform, cpe_string,
+            date_key_start="lastModStartDate", date_start=since,
+            date_key_end="lastModEndDate", date_end=until,
+        )
+
+    def _fetch_nvd_paginated(self, platform: str, cpe_string: str,
+                             date_key_start: str, date_start: str,
+                             date_key_end: str, date_end: str) -> int:
+        """Paginated NVD API fetch with configurable date parameters."""
         start_index = 0
         total_imported = 0
         results_per_page = 2000
@@ -138,8 +169,8 @@ class CVESync:
         while True:
             params = {
                 "cpeName": cpe_string,
-                "pubStartDate": start_date,
-                "pubEndDate": "2025-12-31T23:59:59.999",
+                date_key_start: date_start,
+                date_key_end: date_end,
                 "startIndex": start_index,
                 "resultsPerPage": results_per_page,
             }
@@ -286,52 +317,170 @@ class CVESync:
         return "LOW"
 
     # ── Full sync ────────────────────────────────────────────────────
-    def sync_all(self, since_year: int = 2010) -> dict[str, int]:
-        """Sync all platforms from NVD API.
+    def sync_all(self, since_year: int = 2010,
+                 platforms: list[str] | None = None) -> dict[str, int]:
+        """Sync platforms from NVD API by publication date.
+
+        Args:
+            since_year: Fetch CVEs published since this year.
+            platforms: Optional list of platform keys to sync. If None,
+                       syncs all platforms in CPE_QUERIES.
 
         Returns:
-            Dict of platform → CVE count.
+            Dict of platform → CVE count (plus _cisa_kev_flagged, _epss_enriched).
         """
+        targets = self._resolve_platforms(platforms)
         results = {}
-        total_platforms = len(CPE_QUERIES)
+        total = len(targets)
 
-        for i, (platform, cpe) in enumerate(CPE_QUERIES.items(), 1):
-            print(f"[{i}/{total_platforms}] Syncing {platform}...", file=sys.stderr)
+        for i, (platform, cpe) in enumerate(targets, 1):
+            print(f"[{i}/{total}] Syncing {platform}...", file=sys.stderr)
             count = self.sync_platform(platform, cpe, since_year)
             results[platform] = count
             print(f"  → {count} CVEs", file=sys.stderr)
+            self._save_platform_sync_ts(platform)
 
-        # After NVD sync, overlay CISA KEV and EPSS
+        # Overlay CISA KEV and EPSS
         kev_count = self.sync_cisa_kev()
         results["_cisa_kev_flagged"] = kev_count
 
         epss_count = self.sync_epss()
         results["_epss_enriched"] = epss_count
 
-        # Save last sync timestamp
-        cur = self.db.conn.cursor()
-        cur.execute("""
-            INSERT OR REPLACE INTO sync_metadata (key, value)
-            VALUES ('last_full_sync', ?)
-        """, (datetime.now(timezone.utc).isoformat(),))
-        self.db.conn.commit()
+        # Save full-sync timestamp
+        self._save_sync_ts("last_full_sync")
 
         return results
 
-    def sync_incremental(self) -> dict[str, int]:
-        """Sync only CVEs modified since last sync."""
-        cur = self.db.conn.cursor()
-        cur.execute("SELECT value FROM sync_metadata WHERE key='last_full_sync'")
-        row = cur.fetchone()
-        if not row:
+    def sync_incremental(self, platforms: list[str] | None = None) -> dict[str, int]:
+        """Sync only CVEs modified since the last sync.
+
+        Uses NVD ``lastModStartDate``/``lastModEndDate`` parameters to fetch
+        only CVEs that were created or updated since the previous sync.
+        The NVD API limits date ranges to 120 days, so this method
+        automatically splits wider gaps into 120-day windows.
+
+        Args:
+            platforms: Optional list of platform keys. If None, syncs all.
+
+        Returns:
+            Dict of platform → CVE count (plus _cisa_kev_flagged, _epss_enriched).
+        """
+        last_sync_iso = self._get_sync_ts("last_full_sync")
+        if not last_sync_iso:
             print("[!] No previous sync found. Run full sync first.", file=sys.stderr)
             return {}
 
-        # Use lastModStartDate for incremental
-        self._log(f"Incremental sync since {row['value']}")
-        # Implementation follows same pattern as sync_all but uses
-        # lastModStartDate/lastModEndDate NVD parameters
-        return self.sync_all(since_year=2024)  # simplified for now
+        # Parse last sync timestamp
+        last_sync = self._parse_iso(last_sync_iso)
+        if last_sync is None:
+            print(f"[!] Invalid last sync timestamp: {last_sync_iso}", file=sys.stderr)
+            return {}
+
+        now = datetime.now(timezone.utc)
+        elapsed = now - last_sync
+        self._log(f"Incremental sync since {last_sync_iso} ({elapsed.days} days ago)")
+
+        # Build 120-day windows
+        windows = self._build_date_windows(last_sync, now)
+
+        targets = self._resolve_platforms(platforms)
+        results: dict[str, int] = {}
+        total = len(targets)
+
+        for i, (platform, cpe) in enumerate(targets, 1):
+            platform_total = 0
+            print(f"[{i}/{total}] Incremental sync {platform} "
+                  f"({len(windows)} window{'s' if len(windows) != 1 else ''})...",
+                  file=sys.stderr)
+
+            for win_start, win_end in windows:
+                since_str = win_start.strftime("%Y-%m-%dT%H:%M:%S.000")
+                until_str = win_end.strftime("%Y-%m-%dT%H:%M:%S.000")
+                count = self.sync_platform_modified(platform, cpe, since_str, until_str)
+                platform_total += count
+
+            results[platform] = platform_total
+            print(f"  → {platform_total} CVEs updated", file=sys.stderr)
+            self._save_platform_sync_ts(platform)
+
+        # Overlay CISA KEV and EPSS
+        kev_count = self.sync_cisa_kev()
+        results["_cisa_kev_flagged"] = kev_count
+
+        epss_count = self.sync_epss()
+        results["_epss_enriched"] = epss_count
+
+        # Update sync timestamp
+        self._save_sync_ts("last_full_sync")
+
+        return results
+
+    # ── Platform & date helpers ───────────────────────────────────────
+
+    def _resolve_platforms(self, platforms: list[str] | None) -> list[tuple[str, str]]:
+        """Resolve platform list to [(platform, cpe_string)] pairs."""
+        if platforms:
+            resolved = []
+            for p in platforms:
+                if p in CPE_QUERIES:
+                    resolved.append((p, CPE_QUERIES[p]))
+                else:
+                    print(f"[!] Unknown platform '{p}' — skipping", file=sys.stderr)
+            return resolved
+        return list(CPE_QUERIES.items())
+
+    def _build_date_windows(self, start: datetime,
+                            end: datetime) -> list[tuple[datetime, datetime]]:
+        """Split a date range into <= 120-day windows for NVD API."""
+        windows = []
+        cursor = start
+        max_delta = timedelta(days=self.NVD_MAX_RANGE_DAYS)
+        while cursor < end:
+            window_end = min(cursor + max_delta, end)
+            windows.append((cursor, window_end))
+            cursor = window_end
+        return windows
+
+    def _save_sync_ts(self, key: str) -> None:
+        """Save a sync timestamp to metadata."""
+        cur = self.db.conn.cursor()
+        cur.execute(
+            "INSERT OR REPLACE INTO sync_metadata (key, value) VALUES (?, ?)",
+            (key, datetime.now(timezone.utc).isoformat()),
+        )
+        self.db.conn.commit()
+
+    def _save_platform_sync_ts(self, platform: str) -> None:
+        """Save per-platform sync timestamp."""
+        self._save_sync_ts(f"last_sync_{platform}")
+
+    def _get_sync_ts(self, key: str) -> str | None:
+        """Read a sync timestamp from metadata."""
+        cur = self.db.conn.cursor()
+        cur.execute("SELECT value FROM sync_metadata WHERE key = ?", (key,))
+        row = cur.fetchone()
+        return row["value"] if row else None
+
+    def get_last_sync(self) -> str | None:
+        """Return ISO timestamp of the last full or incremental sync."""
+        return self._get_sync_ts("last_full_sync")
+
+    def get_platform_last_sync(self, platform: str) -> str | None:
+        """Return ISO timestamp of the last sync for a specific platform."""
+        return self._get_sync_ts(f"last_sync_{platform}")
+
+    @staticmethod
+    def _parse_iso(iso_str: str) -> datetime | None:
+        """Parse an ISO 8601 timestamp string to a timezone-aware datetime."""
+        try:
+            # Handle both with and without timezone info
+            dt = datetime.fromisoformat(iso_str)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt
+        except (ValueError, TypeError):
+            return None
 
     # ── CISA KEV sync ────────────────────────────────────────────────
     def sync_cisa_kev(self) -> int:

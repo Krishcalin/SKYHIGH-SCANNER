@@ -13,7 +13,7 @@
   <a href="#supported-platforms"><img src="https://img.shields.io/badge/platforms-23-orange.svg" alt="23 Platforms" /></a>
   <a href="#cve-database"><img src="https://img.shields.io/badge/CVEs-32%2C000+-red.svg" alt="32,000+ CVEs" /></a>
   <a href="#features"><img src="https://img.shields.io/badge/rules-~800-purple.svg" alt="~800 Rules" /></a>
-  <a href="#testing"><img src="https://img.shields.io/badge/tests-190_passing-brightgreen.svg" alt="190 Tests" /></a>
+  <a href="#testing"><img src="https://img.shields.io/badge/tests-269_passing-brightgreen.svg" alt="269 Tests" /></a>
 </p>
 
 ---
@@ -66,8 +66,9 @@ Unlike static analysis tools, SkyHigh Scanner actively queries running systems �
 | **CVE Detection** | Version-based CVE matching against local SQLite database with EPSS scores |
 | **CIS Benchmarks** | Hardening checks based on CIS benchmark guidelines |
 | **Network Discovery** | TCP port scanning, banner grabbing, OS classification |
+| **Compliance Mapping** | NIST SP 800-53, ISO 27001:2022, PCI DSS v4.0, CIS Controls v8 |
 | **Credential Management** | CLI args, environment variables, or credential files |
-| **Reporting** | Console (colored), JSON, CSV, interactive HTML |
+| **Reporting** | Console (colored), JSON, CSV, interactive HTML with compliance tags |
 
 ---
 
@@ -312,11 +313,22 @@ python -m skyhigh_scanner cve-sync --api-key YOUR_NVD_API_KEY
 # Sync from a specific year
 python -m skyhigh_scanner cve-sync --api-key YOUR_NVD_API_KEY --since 2020
 
+# Incremental sync (only CVEs modified since last sync)
+python -m skyhigh_scanner cve-sync --incremental --api-key YOUR_NVD_API_KEY
+
+# Sync specific platforms only
+python -m skyhigh_scanner cve-sync --platform nginx tomcat apache_httpd
+
+# Combine: incremental sync for specific platforms
+python -m skyhigh_scanner cve-sync --incremental --platform openssl openssh
+
 # Sync without API key (slower, 6s rate limit)
 python -m skyhigh_scanner cve-sync
 ```
 
 > Get a free NVD API key at https://nvd.nist.gov/developers/request-an-api-key to increase sync speed (0.6s vs 6s between requests).
+
+**Incremental sync** uses the NVD `lastModStartDate`/`lastModEndDate` API parameters to fetch only CVEs that were created or updated since the previous sync. This is significantly faster than a full sync and is ideal for daily/weekly updates. The NVD API limits date ranges to 120 days, so wider gaps are automatically split into multiple windows.
 
 ### EPSS Sync Options
 
@@ -418,6 +430,40 @@ The scanner syncs CVEs for 49 CPE (Common Platform Enumeration) strings covering
 
 ---
 
+## Compliance Framework Mapping
+
+SkyHigh Scanner maps findings to four major compliance frameworks, enabling audit-ready reports:
+
+| Framework | Standard | Controls Mapped |
+|-----------|----------|-----------------|
+| **NIST SP 800-53** | Rev 5 | AC, AU, CM, IA, SC, SI, SA, CP families |
+| **ISO 27001** | 2022 | Annex A controls (A.5-A.8) |
+| **PCI DSS** | v4.0 | Requirements 1-10 |
+| **CIS Controls** | v8 | Controls 3-16 |
+
+### How It Works
+
+1. **CWE-based mapping** (primary) -- ~60 CWE IDs mapped to all four frameworks
+2. **Category-based fallback** -- ~30 finding categories for findings without CWEs
+3. **Opt-in enrichment** -- Add `--compliance` to any scan command
+
+```bash
+# Scan with compliance mapping
+python -m skyhigh_scanner linux -r 10.0.0.0/24 --compliance
+
+# Compliance tags appear in all output formats
+python -m skyhigh_scanner cisco -r 10.1.1.0/24 --compliance --html report.html --csv report.csv
+```
+
+### Output
+
+- **Console**: Each finding shows `Compliance: NIST: SI-10, SI-3 | ISO: A.8.28 | PCI: 6.2.4 | CIS: 16.12`
+- **HTML**: Compliance tags on findings + framework summary table with control-to-finding counts
+- **JSON**: Nested `compliance` dict per finding: `{"nist_800_53": ["SI-10"], "pci_dss": ["6.2.4"], ...}`
+- **CSV**: Flattened columns: `nist_800_53`, `iso_27001`, `pci_dss`, `cis_controls`
+
+---
+
 ## HTML Reports
 
 SkyHigh Scanner generates interactive HTML reports with:
@@ -451,7 +497,7 @@ SKYHIGH-SCANNER/
 ├── .github/workflows/
 │   └── ci.yml                    # GitHub Actions CI (test, lint, seed validation)
 │
-├── tests/                        # Test suite (190 tests)
+├── tests/                        # Test suite (269 tests)
 │   ├── conftest.py               # Shared fixtures
 │   ├── test_version_utils.py     # Version parsing & range matching (20 tests)
 │   ├── test_ip_utils.py          # IP range expansion & DNS (16 tests)
@@ -462,7 +508,9 @@ SKYHIGH-SCANNER/
 │   ├── test_reporting.py         # HTML generation & XSS escaping (11 tests)
 │   ├── test_seed_validation.py   # Seed file integrity & dedup (12 tests)
 │   ├── test_epss.py              # EPSS integration end-to-end (27 tests)
-│   └── test_cli.py               # CLI argument parsing (25 tests)
+│   ├── test_cli.py               # CLI argument parsing (25 tests)
+│   ├── test_incremental_sync.py  # Incremental CVE sync (23 tests)
+│   └── test_compliance.py       # Compliance framework mapping (53 tests)
 │
 └── skyhigh_scanner/              # Main package
     ├── __init__.py               # VERSION = "1.0.0"
@@ -553,9 +601,11 @@ pytest tests/test_seed_validation.py -v
 | `core/scanner_base.py` | 17 | 93% |
 | `core/cve_database.py` | 14 | 85% |
 | EPSS integration | 27 | N/A (cross-module) |
+| Incremental CVE sync | 23 | N/A (cross-module) |
+| Compliance mapping | 53 | N/A (cross-module) |
 | Seed file validation | 12 | N/A |
 | CLI argument parsing | 25 | N/A |
-| **Total** | **190** | |
+| **Total** | **269** | |
 
 ### CI Pipeline
 
@@ -587,7 +637,7 @@ Contributions are welcome! Here's how to get started:
 2. **Create** a feature branch: `git checkout -b feature/my-feature`
 3. **Install** dev dependencies: `pip install -r requirements-dev.txt`
 4. **Make** your changes
-5. **Run tests**: `pytest` -- all 190 tests must pass
+5. **Run tests**: `pytest` -- all 269 tests must pass
 6. **Lint**: `ruff check skyhigh_scanner/ tests/`
 7. **Commit**: `git commit -m "Add my feature"`
 8. **Push**: `git push origin feature/my-feature`

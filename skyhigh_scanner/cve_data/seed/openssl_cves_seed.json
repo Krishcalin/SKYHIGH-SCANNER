@@ -251,6 +251,34 @@
       "cisa_kev": false,
       "epss_score": 0.05,
       "affected": ">=1.0.0,<3.2.1"
+    },
+    {
+      "cve_id": "CVE-2023-5678",
+      "platform": "openssl",
+      "severity": "MEDIUM",
+      "cvss_v3": 5.3,
+      "cwe": "CWE-754",
+      "published": "2023-11-06",
+      "name": "OpenSSL DH Key Generation Excessive Time",
+      "description": "Generating excessively long X9.42 DH keys or checking excessively long X9.42 DH keys or parameters may be very slow. Applications that use DH_generate_key() or DH_check() with untrusted input may be vulnerable.",
+      "recommendation": "Upgrade OpenSSL to >= 1.0.2zj, 1.1.1x, 3.0.13, 3.1.5, or 3.2.1.",
+      "cisa_kev": false,
+      "epss_score": 0.05,
+      "affected": ">=1.0.2,<3.2.1"
+    },
+    {
+      "cve_id": "CVE-2023-2650",
+      "platform": "openssl",
+      "severity": "MEDIUM",
+      "cvss_v3": 6.5,
+      "cwe": "CWE-770",
+      "published": "2023-05-30",
+      "name": "OpenSSL OBJ_obj2txt Excessive Resource Use",
+      "description": "Processing some specially crafted ASN.1 object identifiers or data containing them via OBJ_obj2txt() may cause very slow processing, enabling denial of service.",
+      "recommendation": "Upgrade OpenSSL to >= 1.0.2zh, 1.1.1u, 3.0.9, or 3.1.1.",
+      "cisa_kev": false,
+      "epss_score": 0.05,
+      "affected": ">=1.0.0,<3.1.1"
     }
   ]
 }

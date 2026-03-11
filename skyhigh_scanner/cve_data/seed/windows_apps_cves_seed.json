@@ -531,6 +531,62 @@
       "cisa_kev": true,
       "epss_score": 0.72,
       "affected": ">=6.1,<=10.0"
+    },
+    {
+      "cve_id": "CVE-2024-21413",
+      "platform": "exchange_server",
+      "severity": "CRITICAL",
+      "cvss_v3": 9.8,
+      "cwe": "CWE-20",
+      "published": "2024-02-13",
+      "name": "Microsoft Outlook Moniker Link RCE",
+      "description": "Microsoft Outlook remote code execution vulnerability via moniker links. The ! character bypass allows a crafted hyperlink to leak NTLM credentials and achieve code execution without user interaction.",
+      "recommendation": "Apply February 2024 Outlook security update.",
+      "cisa_kev": true,
+      "epss_score": 0.92,
+      "affected": ">=16.0,<=16.0"
+    },
+    {
+      "cve_id": "CVE-2024-49040",
+      "platform": "exchange_server",
+      "severity": "HIGH",
+      "cvss_v3": 7.5,
+      "cwe": "CWE-451",
+      "published": "2024-11-12",
+      "name": "Microsoft Exchange Server Spoofing",
+      "description": "Exchange Server spoofing vulnerability allowing an attacker to spoof the sender email address of legitimate emails by exploiting an inconsistency in how the P2 FROM header is processed.",
+      "recommendation": "Apply November 2024 Exchange security update.",
+      "cisa_kev": false,
+      "epss_score": 0.15,
+      "affected": ">=15.1,<=15.2"
+    },
+    {
+      "cve_id": "CVE-2024-38226",
+      "platform": "windows",
+      "severity": "HIGH",
+      "cvss_v3": 7.3,
+      "cwe": "CWE-693",
+      "published": "2024-09-10",
+      "name": "Microsoft Publisher Macro Policy Bypass",
+      "description": "Security feature bypass in Microsoft Publisher allowing an attacker to bypass Office macro policies. Locally crafted Publisher files can execute embedded macros without prompting.",
+      "recommendation": "Apply September 2024 security update for Microsoft Publisher.",
+      "cisa_kev": true,
+      "epss_score": 0.14,
+      "affected": ">=16.0,<=16.0"
+    },
+    {
+      "cve_id": "CVE-2024-43468",
+      "platform": "windows",
+      "severity": "CRITICAL",
+      "cvss_v3": 9.8,
+      "cwe": "CWE-89",
+      "published": "2024-10-08",
+      "name": "Microsoft Configuration Manager SQL Injection RCE",
+      "description": "SQL injection in Microsoft Configuration Manager allowing an unauthenticated attacker to execute arbitrary commands on the site database and server.",
+      "recommendation": "Apply October 2024 Configuration Manager update.",
+      "cisa_kev": false,
+      "epss_score": 0.18,
+      "affected": ">=2.0,<=2.0"
     }
   ]
 }

@@ -32,8 +32,8 @@ class MiddlewareScanner(ScannerBase):
 
     def __init__(self, target: str, credentials: CredentialManager,
                  max_hosts: int = 256, timeout: int = 30,
-                 verbose: bool = False):
-        super().__init__(verbose=verbose)
+                 verbose: bool = False, profile=None):
+        super().__init__(verbose=verbose, profile=profile)
         self.target = target
         self.credentials = credentials
         self.max_hosts = max_hosts
@@ -56,6 +56,8 @@ class MiddlewareScanner(ScannerBase):
 
     def _scan_host(self, host_ip: str) -> None:
         """Detect and scan middleware on a single host."""
+        if not self._check_enabled("middleware"):
+            return
         # Try SSH first, then WinRM
         if self.credentials.has_ssh() and HAS_PARAMIKO:
             self._scan_via_ssh(host_ip)

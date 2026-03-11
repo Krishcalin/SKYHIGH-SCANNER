@@ -398,9 +398,16 @@ class CVEDatabase:
         cur.execute("SELECT COUNT(*) as cnt FROM cves WHERE epss_score >= 0.5")
         epss_high = cur.fetchone()["cnt"]
 
+        # Sync metadata
+        sync_meta = {}
+        cur.execute("SELECT key, value FROM sync_metadata")
+        for row in cur.fetchall():
+            sync_meta[row["key"]] = row["value"]
+
         return {
             "total": total, "kev": kev, "platforms": platform_counts,
             "epss_populated": epss_count,
             "epss_avg": round(avg_epss, 4) if avg_epss else 0.0,
             "epss_high_risk": epss_high,
+            "sync_metadata": sync_meta,
         }

@@ -25,6 +25,8 @@ IIS_CVE_VERSIONS = {
     "10.0": ("CVE-2021-31166", "CRITICAL", "HTTP Protocol Stack Wormable RCE"),
     "10.0.17763": ("CVE-2022-21907", "CRITICAL", "HTTP Protocol Stack RCE via Trailer"),
     "10.0.20348": ("CVE-2023-44487", "HIGH", "HTTP/2 Rapid Reset DDoS"),
+    "10.0.14393": ("CVE-2021-31166", "CRITICAL", "HTTP.sys Wormable RCE (Server 2016)"),
+    "10.0.19041": ("CVE-2022-21907", "CRITICAL", "HTTP Protocol Stack RCE (Server 2019/W10)"),
 }
 
 

@@ -61,7 +61,7 @@ skyhigh_scanner/
 │   └── seed/                   # 21 seed JSON files (451 CVEs)
 └── templates/           # HTML report templates
 
-tests/                   # 190 pytest tests
+tests/                   # 269 pytest tests
 ├── conftest.py                # Shared fixtures
 ├── test_version_utils.py      # 20 tests
 ├── test_ip_utils.py           # 16 tests
@@ -72,7 +72,10 @@ tests/                   # 190 pytest tests
 ├── test_reporting.py          # 11 tests
 ├── test_seed_validation.py    # 12 tests
 ├── test_epss.py               # 27 tests (EPSS integration)
-└── test_cli.py                # 25 tests
+├── test_cli.py                # 25 tests
+├── test_incremental_sync.py   # 23 tests (incremental CVE sync)
+├── test_compliance.py         # 53 tests (compliance framework mapping)
+└── (3 skipped without requests)
 ```
 
 ### CLI Commands
@@ -84,20 +87,24 @@ python -m skyhigh_scanner cisco      -r 10.1.1.0/24       # Cisco devices
 python -m skyhigh_scanner webserver  --target https://...  # Web servers
 python -m skyhigh_scanner middleware -r 10.0.0.0/24        # Middleware
 python -m skyhigh_scanner database   -r 10.0.0.0/24        # Databases
-python -m skyhigh_scanner cve-sync   --api-key KEY         # Sync NVD API + EPSS + KEV
+python -m skyhigh_scanner cve-sync   --api-key KEY         # Full sync NVD API + EPSS + KEV
+python -m skyhigh_scanner cve-sync   --incremental          # Delta sync (changes since last sync)
+python -m skyhigh_scanner cve-sync   --platform nginx tomcat # Sync specific platforms only
 python -m skyhigh_scanner cve-import                        # Import seed CVEs
-python -m skyhigh_scanner cve-stats                         # Show CVE + EPSS stats
+python -m skyhigh_scanner cve-stats                         # Show CVE + EPSS + sync stats
 python -m skyhigh_scanner epss-sync                         # Update EPSS scores from FIRST.org
 ```
 
 ### Key Patterns
-- **Finding dataclass**: `rule_id, name, category, severity, file_path, line_num, line_content, description, recommendation, cwe, cve, target_type, cvss, cisa_kev, epss`
+- **Finding dataclass**: `rule_id, name, category, severity, file_path, line_num, line_content, description, recommendation, cwe, cve, target_type, cvss, cisa_kev, epss, compliance`
 - **Version matching**: `version_in_range(ver, ">=2.4.0,<2.4.52")` handles comma-separated conditions
 - **Embedded CVE lists**: Scanner modules have hardcoded CVE dicts for fast offline matching
 - **Seed JSON schema**: `{"cve_id", "platform", "severity", "cvss_v3", "cwe", "published", "name", "description", "recommendation", "cisa_kev", "epss_score", "affected"}`
 - **Seed file formats**: Importer accepts both `[...]` arrays and `{"cves": [...]}` wrappers
 - **CPE_QUERIES**: Dict in `cve_sync.py` mapping platform keys to CPE 2.3 strings (49 entries)
 - **Rule ID formats**: `WEB-APACHE-001`, `CISCO-AUTH-001`, `DB-MONGO-NET-001`, `MW-JAVA-VER-001`
+- **Compliance mapping**: `compliance.py` maps CWE IDs + categories to NIST 800-53, ISO 27001, PCI DSS 4.0, CIS Controls v8
+- **`--compliance` flag**: Enriches findings with framework controls; shown in console, HTML, JSON, CSV
 
 ## CVE Database
 - **451 curated CVEs** across 21 seed files, 35 platforms (deduplicated in Phase 3)
@@ -173,10 +180,34 @@ python -m skyhigh_scanner epss-sync                         # Update EPSS scores
 - **27 new tests** in `test_epss.py` covering all integration points
 - **Stats**: `cve-stats` now shows EPSS population count, average score, high-risk count
 
+### Phase 5 — Incremental CVE Sync
+- **`sync_incremental()`**: Uses NVD `lastModStartDate`/`lastModEndDate` for delta updates
+- **120-day windowing**: Automatically splits wide date ranges into NVD-compliant windows
+- **`--platform` filter**: `cve-sync --platform nginx tomcat` syncs only specified platforms
+- **Per-platform timestamps**: Tracks `last_sync_{platform}` in `sync_metadata` table
+- **`sync_platform_modified()`**: New method for date-range-based queries
+- **`get_last_sync()` / `get_platform_last_sync()`**: Metadata accessors
+- **`cve-stats` enhanced**: Shows last CVE sync and EPSS sync timestamps
+- **23 new tests** in `test_incremental_sync.py`
+
+### Phase 6 — Compliance Framework Mapping
+- **`compliance.py`**: Maps CWE IDs + categories to 4 frameworks (NIST 800-53 Rev 5, ISO 27001:2022, PCI DSS v4.0, CIS Controls v8)
+- **~60 CWE mappings**: Covering OWASP Top 10, authentication, crypto, patching, logging, memory, network
+- **~30 category fallback mappings**: For findings without CWEs (SSH, SNMP, NTP, firewall, etc.)
+- **Finding enrichment**: `enrich_compliance()` on ScannerBase, `enrich_finding()` / `enrich_findings()` functions
+- **`--compliance` CLI flag**: Opt-in enrichment during scans
+- **Console report**: Shows compliance controls per finding + framework summary with top controls
+- **HTML report**: Compliance tags on findings, dashboard card, framework summary table section
+- **CSV export**: Flattened `nist_800_53`, `iso_27001`, `pci_dss`, `cis_controls` columns
+- **JSON export**: Nested `compliance` dict in each finding
+- **`filter_by_framework()`**: Filter findings by framework or specific controls
+- **`compliance_summary()`**: Aggregate control counts across all findings
+- **53 new tests** in `test_compliance.py`
+
 ## Testing
 ```bash
 pip install -r requirements-dev.txt    # pytest, pytest-cov, ruff, mypy
-pytest                                  # Run all 190 tests
+pytest                                  # Run all 269 tests
 pytest --cov=skyhigh_scanner.core       # With coverage
 pytest tests/test_seed_validation.py    # Seed integrity only
 ruff check skyhigh_scanner/ tests/      # Lint
@@ -195,6 +226,8 @@ ruff check skyhigh_scanner/ tests/      # Lint
 | `tests/test_seed_validation.py` | 12 | JSON schema, CVE format, CVSS/EPSS ranges, dedup |
 | `tests/test_epss.py` | 27 | EPSS flow: DB→Finding, enrichment, HTML/console/CSV, API mock |
 | `tests/test_cli.py` | 25 | All argparse subcommands, flags, defaults |
+| `tests/test_incremental_sync.py` | 23 | Incremental sync, date windows, platform filter, metadata |
+| `tests/test_compliance.py` | 53 | CWE/category mapping, enrichment, filter, format, HTML/CSV/JSON |
 
 ### CI Pipeline (`.github/workflows/ci.yml`)
 - **test**: Matrix Python 3.9, 3.10, 3.11, 3.12 — `pytest --cov`

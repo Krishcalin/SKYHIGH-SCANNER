@@ -195,6 +195,34 @@
       "cisa_kev": false,
       "epss_score": 0.07,
       "affected": ">=7.7,<8.1"
+    },
+    {
+      "cve_id": "CVE-2023-51385",
+      "platform": "openssh",
+      "severity": "MEDIUM",
+      "cvss_v3": 6.5,
+      "cwe": "CWE-78",
+      "published": "2023-12-18",
+      "name": "OpenSSH ProxyCommand OS Command Injection",
+      "description": "OpenSSH before 9.6 allows OS command injection via ProxyCommand, ProxyJump, or LocalCommand directives when the user-specified hostname contains shell metacharacters (e.g., backticks).",
+      "recommendation": "Upgrade OpenSSH to >= 9.6p1.",
+      "cisa_kev": false,
+      "epss_score": 0.18,
+      "affected": ">=5.0,<9.6"
+    },
+    {
+      "cve_id": "CVE-2023-28531",
+      "platform": "openssh",
+      "severity": "MEDIUM",
+      "cvss_v3": 5.5,
+      "cwe": "CWE-304",
+      "published": "2023-03-17",
+      "name": "OpenSSH ssh-agent PKCS#11 Restriction Bypass",
+      "description": "ssh-agent in OpenSSH before 9.3p2 has an insufficiently trustworthy search path. When adding PKCS#11 keys with destination constraints, it fails to properly enforce the restrictions.",
+      "recommendation": "Upgrade OpenSSH to >= 9.3p2.",
+      "cisa_kev": false,
+      "epss_score": 0.06,
+      "affected": ">=8.9,<9.3"
     }
   ]
 }

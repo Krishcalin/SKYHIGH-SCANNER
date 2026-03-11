@@ -1,0 +1,145 @@
+"""
+Scan profiles for SkyHigh Scanner.
+
+Profiles control *which check categories* each scanner executes,
+allowing users to trade breadth for speed or focus on specific concerns.
+
+Usage::
+
+    python -m skyhigh_scanner linux -r 10.0.0.0/24 --profile quick
+    python -m skyhigh_scanner windows -r 10.0.0.0/24 --profile compliance
+
+Available profiles:
+
+    quick       Critical/High CVEs + basic auth checks — fast triage
+    standard    All configuration checks + CVEs (default)
+    full        Everything including slow checks (package updates, extended probes)
+    compliance  CIS/hardening checks only — skip CVEs, for audit prep
+    cve-only    Only CVE version checks — minimal noise, max CVE coverage
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Dict, FrozenSet, List, Optional
+
+
+# ── Check categories ──────────────────────────────────────────────────
+# Each scanner method maps to one of these categories.  Profiles
+# enable/disable categories to control which checks run.
+
+CATEGORIES = frozenset({
+    # Common across scanners
+    "auth",             # Authentication & account policies
+    "cve",              # CVE version matching
+    "services",         # Unnecessary/dangerous services
+    "network",          # Network hardening (sysctl, interfaces)
+    "logging",          # Audit & logging configuration
+    "crypto",           # SSH, TLS, encryption settings
+    "firewall",         # Firewall rules & profiles
+    "permissions",      # File permissions, ACLs
+    "patches",          # Patch management / package updates (slow)
+    "kernel",           # Kernel parameters (ASLR, etc.)
+    "filesystem",       # Mount options, disk hardening
+    "registry",         # Windows registry hardening
+    "headers",          # HTTP security headers
+    "ssl",              # SSL/TLS certificate & protocol checks
+    "disclosure",       # Information disclosure / banner checks
+    "http_methods",     # Dangerous HTTP methods
+    "server_specific",  # Server-specific checks (IIS, Apache, etc.)
+    "middleware",       # Middleware detection & checks
+    "database",         # Database-specific checks
+    "snmp",             # SNMP configuration
+    "discovery",        # CDP, LLDP, protocol discovery
+    "banners",          # Login banners
+    "console",          # Console/AUX hardening
+    "routing",          # Routing protocol security
+    "layer2",           # Layer 2 security (DHCP snooping, etc.)
+    "control_plane",    # Control plane policing
+    "misc",             # Miscellaneous hardening
+})
+
+
+# ── Profile definitions ───────────────────────────────────────────────
+
+@dataclass(frozen=True)
+class ScanProfile:
+    """Definition of a scan profile."""
+
+    name: str
+    description: str
+    enabled_categories: FrozenSet[str]
+    severity_floor: Optional[str] = None  # Override minimum severity if set
+
+    def is_enabled(self, category: str) -> bool:
+        """Check whether a check category is enabled in this profile."""
+        return category in self.enabled_categories
+
+
+# quick — fast triage: CVEs + auth only
+PROFILE_QUICK = ScanProfile(
+    name="quick",
+    description="Critical/High CVEs + basic auth checks — fast triage",
+    enabled_categories=frozenset({"cve", "auth", "crypto"}),
+    severity_floor="HIGH",
+)
+
+# standard — all config checks + CVEs (today's default behaviour)
+PROFILE_STANDARD = ScanProfile(
+    name="standard",
+    description="All configuration checks + CVEs (default)",
+    enabled_categories=frozenset(CATEGORIES - {"patches"}),
+    # patches excluded from standard because they're slow (apt/yum)
+)
+
+# full — everything, including slow checks
+PROFILE_FULL = ScanProfile(
+    name="full",
+    description="All checks including slow ones (package updates, extended probes)",
+    enabled_categories=frozenset(CATEGORIES),
+)
+
+# compliance — hardening checks only, no CVEs
+PROFILE_COMPLIANCE = ScanProfile(
+    name="compliance",
+    description="CIS/hardening checks only — skip CVEs, for audit prep",
+    enabled_categories=frozenset(CATEGORIES - {"cve", "patches"}),
+)
+
+# cve-only — minimal noise, max CVE coverage
+PROFILE_CVE_ONLY = ScanProfile(
+    name="cve-only",
+    description="Only CVE version checks — minimal noise, max CVE coverage",
+    enabled_categories=frozenset({"cve"}),
+)
+
+
+# ── Registry ──────────────────────────────────────────────────────────
+
+PROFILES: Dict[str, ScanProfile] = {
+    "quick":      PROFILE_QUICK,
+    "standard":   PROFILE_STANDARD,
+    "full":       PROFILE_FULL,
+    "compliance": PROFILE_COMPLIANCE,
+    "cve-only":   PROFILE_CVE_ONLY,
+}
+
+DEFAULT_PROFILE = "standard"
+
+
+def get_profile(name: str) -> ScanProfile:
+    """Look up a profile by name.
+
+    Raises:
+        ValueError: If the profile name is unknown.
+    """
+    profile = PROFILES.get(name)
+    if profile is None:
+        valid = ", ".join(sorted(PROFILES))
+        raise ValueError(f"Unknown scan profile '{name}'. Valid profiles: {valid}")
+    return profile
+
+
+def list_profiles() -> List[ScanProfile]:
+    """Return all available profiles sorted by name."""
+    return sorted(PROFILES.values(), key=lambda p: p.name)

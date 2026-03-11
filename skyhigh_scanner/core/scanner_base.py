@@ -15,7 +15,9 @@ from collections import Counter
 from datetime import datetime, timezone
 from typing import List, Optional
 
+from .compliance import enrich_findings, compliance_summary, format_controls, FRAMEWORKS
 from .finding import Finding
+from .scan_profiles import ScanProfile, get_profile, DEFAULT_PROFILE
 
 
 class ScannerBase(ABC):
@@ -40,8 +42,9 @@ class ScannerBase(ABC):
     SCANNER_VERSION: str = "1.0.0"
     TARGET_TYPE: str = "generic"        # windows | linux | cisco | webserver | middleware | database
 
-    def __init__(self, verbose: bool = False):
+    def __init__(self, verbose: bool = False, profile: ScanProfile = None):
         self.verbose = verbose
+        self.profile: ScanProfile = profile or get_profile(DEFAULT_PROFILE)
         self.findings: List[Finding] = []
         self.targets_scanned: List[str] = []
         self.targets_failed: List[str] = []
@@ -52,6 +55,11 @@ class ScannerBase(ABC):
     @abstractmethod
     def scan(self) -> None:
         """Execute the scan. Must be implemented by every scanner."""
+
+    # ── Profile gate ────────────────────────────────────────────────
+    def _check_enabled(self, category: str) -> bool:
+        """Return True if *category* is enabled by the active scan profile."""
+        return self.profile.is_enabled(category)
 
     # ── Finding management ───────────────────────────────────────────
     def _add(self, rule_id: str, name: str, category: str, severity: str,
@@ -117,6 +125,15 @@ class ScannerBase(ABC):
             return round(self._end_time - self._start_time, 2)
         return 0.0
 
+    # ── Compliance enrichment ─────────────────────────────────────────
+    def enrich_compliance(self) -> int:
+        """Map all findings to compliance framework controls.
+
+        Returns:
+            Number of findings enriched.
+        """
+        return enrich_findings(self.findings)
+
     # ── Filtering ────────────────────────────────────────────────────
     def filter_severity(self, min_severity: str) -> None:
         """Remove findings below *min_severity*."""
@@ -134,10 +151,13 @@ class ScannerBase(ABC):
         kev_count = sum(1 for f in self.findings if f.cisa_kev)
         epss_values = [f.epss for f in self.findings if f.epss is not None]
         epss_high = sum(1 for v in epss_values if v >= 0.5)
+        compliance_mapped = sum(1 for f in self.findings if f.compliance)
+        comp_summary = compliance_summary(self.findings) if compliance_mapped else {}
         return {
             "scanner": self.SCANNER_NAME,
             "version": self.SCANNER_VERSION,
             "target_type": self.TARGET_TYPE,
+            "profile": self.profile.name,
             "generated": datetime.now(timezone.utc).isoformat(),
             "scan_duration_seconds": self.duration_seconds,
             "targets_scanned": len(self.targets_scanned),
@@ -154,6 +174,8 @@ class ScannerBase(ABC):
                 "INFO": counts.get("INFO", 0),
             },
             "category_counts": dict(categories.most_common()),
+            "compliance_mapped": compliance_mapped,
+            "compliance": comp_summary,
         }
 
     # ── Console report ───────────────────────────────────────────────
@@ -207,6 +229,20 @@ class ScannerBase(ABC):
                 print(f"    CVSS   : {f.cvss}")
             if f.epss is not None:
                 print(f"    EPSS   : {f.epss * 100:.1f}%")
+            if f.compliance:
+                print(f"    Compliance: {format_controls(f.compliance)}")
+
+        # Compliance summary
+        if s.get("compliance_mapped"):
+            print(f"\n{'-'*70}")
+            print(f" {self.BOLD}Compliance Mapping{self.RESET} "
+                  f"({s['compliance_mapped']}/{total} findings mapped)")
+            for fw_key, fw_label in FRAMEWORKS.items():
+                controls = s.get("compliance", {}).get(fw_key, {})
+                if controls:
+                    top = list(controls.items())[:5]
+                    top_str = ", ".join(f"{c} ({n})" for c, n in top)
+                    print(f"  {fw_label}: {top_str}")
 
         print(f"\n{'='*70}\n")
 
@@ -231,13 +267,145 @@ class ScannerBase(ABC):
             "rule_id", "severity", "name", "category", "cve", "cwe",
             "file_path", "line_content", "description", "recommendation",
             "cvss", "epss", "cisa_kev", "target_type",
+            "nist_800_53", "iso_27001", "pci_dss", "cis_controls",
         ]
         with open(path, "w", newline="", encoding="utf-8") as fh:
             writer = csv.DictWriter(fh, fieldnames=fields, extrasaction="ignore")
             writer.writeheader()
             for f in self.findings:
-                writer.writerow(f.to_dict())
+                row = f.to_dict()
+                # Flatten compliance into per-framework columns
+                comp = row.pop("compliance", None) or {}
+                for fw in ("nist_800_53", "iso_27001", "pci_dss", "cis_controls"):
+                    row[fw] = ", ".join(comp.get(fw, []))
+                writer.writerow(row)
         self._info(f"CSV report saved to {path}")
+
+    # ── SARIF export ─────────────────────────────────────────────────
+    def save_sarif(self, path: str) -> None:
+        """Export findings in SARIF v2.1.0 format.
+
+        SARIF (Static Analysis Results Interchange Format) is an OASIS
+        standard consumed by GitHub Code Scanning, VS Code SARIF Viewer,
+        Azure DevOps, and many other tools.
+        """
+        SARIF_SEVERITY = {
+            "CRITICAL": "error",
+            "HIGH":     "error",
+            "MEDIUM":   "warning",
+            "LOW":      "note",
+            "INFO":     "note",
+        }
+
+        # Build rule descriptors (deduplicated by rule_id)
+        rules_map: dict = {}
+        for f in self.findings:
+            if f.rule_id not in rules_map:
+                props = {}
+                if f.cwe:
+                    props["tags"] = [f.cwe]
+                if f.cvss is not None:
+                    props["security-severity"] = str(f.cvss)
+                rule = {
+                    "id": f.rule_id,
+                    "name": f.name,
+                    "shortDescription": {"text": f.name},
+                    "fullDescription": {"text": f.description},
+                    "helpUri": f"https://cwe.mitre.org/data/definitions/{f.cwe.split('-')[-1]}.html"
+                               if f.cwe and f.cwe.startswith("CWE-") else None,
+                    "help": {
+                        "text": f.recommendation,
+                        "markdown": f"**Recommendation:** {f.recommendation}",
+                    },
+                    "defaultConfiguration": {
+                        "level": SARIF_SEVERITY.get(f.severity, "note"),
+                    },
+                }
+                if props:
+                    rule["properties"] = props
+                # Strip None values
+                rule = {k: v for k, v in rule.items() if v is not None}
+                rules_map[f.rule_id] = rule
+
+        rules = list(rules_map.values())
+        rule_index = {r["id"]: i for i, r in enumerate(rules)}
+
+        # Build results
+        results = []
+        for f in self.findings:
+            result = {
+                "ruleId": f.rule_id,
+                "ruleIndex": rule_index[f.rule_id],
+                "level": SARIF_SEVERITY.get(f.severity, "note"),
+                "message": {"text": f.description},
+                "locations": [{
+                    "physicalLocation": {
+                        "artifactLocation": {"uri": f.file_path},
+                        "region": {"startLine": max(f.line_num, 1)},
+                    },
+                }],
+            }
+
+            # Fingerprint for deduplication
+            result["fingerprints"] = {
+                "skyhigh/v1": f"{f.rule_id}:{f.file_path}:{f.line_num}",
+            }
+
+            # Fixes / recommendations
+            if f.recommendation:
+                result["fixes"] = [{
+                    "description": {"text": f.recommendation},
+                }]
+
+            # Properties bag for extra metadata
+            props = {}
+            if f.category:
+                props["category"] = f.category
+            if f.cve:
+                props["cve"] = f.cve
+            if f.cisa_kev:
+                props["cisa_kev"] = True
+            if f.epss is not None:
+                props["epss"] = f.epss
+            if f.fix_version:
+                props["fix_version"] = f.fix_version
+            if f.compliance:
+                props["compliance"] = f.compliance
+            if props:
+                result["properties"] = props
+
+            results.append(result)
+
+        # Assemble SARIF envelope
+        sarif = {
+            "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json",
+            "version": "2.1.0",
+            "runs": [{
+                "tool": {
+                    "driver": {
+                        "name": self.SCANNER_NAME,
+                        "version": self.SCANNER_VERSION,
+                        "semanticVersion": self.SCANNER_VERSION,
+                        "informationUri": "https://github.com/Krishcalin/SKYHIGH-SCANNER",
+                        "rules": rules,
+                    },
+                },
+                "results": results,
+                "invocations": [{
+                    "executionSuccessful": True,
+                    "startTimeUtc": datetime.fromtimestamp(
+                        self._start_time, tz=timezone.utc
+                    ).isoformat() if self._start_time else None,
+                    "endTimeUtc": datetime.fromtimestamp(
+                        self._end_time, tz=timezone.utc
+                    ).isoformat() if self._end_time else None,
+                }],
+            }],
+        }
+
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(sarif, fh, indent=2, ensure_ascii=False)
+        self._info(f"SARIF report saved to {path}")
 
     # ── Exit code ────────────────────────────────────────────────────
     def exit_code(self) -> int:

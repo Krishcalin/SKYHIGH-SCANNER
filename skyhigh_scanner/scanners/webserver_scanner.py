@@ -29,8 +29,8 @@ class WebServerScanner(ScannerBase):
     TARGET_TYPE = "webserver"
 
     def __init__(self, target: str, credentials: CredentialManager = None,
-                 timeout: int = 30, verbose: bool = False):
-        super().__init__(verbose=verbose)
+                 timeout: int = 30, verbose: bool = False, profile=None):
+        super().__init__(verbose=verbose, profile=profile)
         self.target = target
         self.credentials = credentials
         self.timeout = timeout
@@ -72,17 +72,21 @@ class WebServerScanner(ScannerBase):
             server_banner = headers.get("Server", "")
             self._vprint(f"  Server: {server_banner}")
 
-            # Shared checks
-            self._check_server_disclosure(url, server_banner)
-            self._check_security_headers(url, headers)
-            self._check_http_methods(http, url)
-            if url.startswith("https://"):
+            # Shared checks (gated by scan profile)
+            if self._check_enabled("disclosure"):
+                self._check_server_disclosure(url, server_banner)
+            if self._check_enabled("headers"):
+                self._check_security_headers(url, headers)
+            if self._check_enabled("http_methods"):
+                self._check_http_methods(http, url)
+            if url.startswith("https://") and self._check_enabled("ssl"):
                 self._check_ssl_tls(url)
 
             # Dispatch to server-specific checks
-            server_type = self._identify_server(server_banner, http)
-            if server_type:
-                self._dispatch_server_checks(server_type, http, url)
+            if self._check_enabled("server_specific"):
+                server_type = self._identify_server(server_banner, http)
+                if server_type:
+                    self._dispatch_server_checks(server_type, http, url)
         finally:
             http.disconnect()
 

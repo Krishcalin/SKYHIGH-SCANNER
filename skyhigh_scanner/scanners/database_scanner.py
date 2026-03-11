@@ -29,8 +29,8 @@ class DatabaseScanner(ScannerBase):
 
     def __init__(self, target: str, credentials: CredentialManager,
                  max_hosts: int = 256, timeout: int = 30,
-                 verbose: bool = False):
-        super().__init__(verbose=verbose)
+                 verbose: bool = False, profile=None):
+        super().__init__(verbose=verbose, profile=profile)
         self.target = target
         self.credentials = credentials
         self.max_hosts = max_hosts
@@ -53,6 +53,9 @@ class DatabaseScanner(ScannerBase):
 
     def _scan_host(self, host_ip: str) -> None:
         """Detect running databases by port probing and run checks."""
+        if not self._check_enabled("database"):
+            return
+
         # Oracle TNS (1521)
         if self._port_open(host_ip, 1521):
             self._vprint(f"  Oracle TNS detected on {host_ip}:1521")

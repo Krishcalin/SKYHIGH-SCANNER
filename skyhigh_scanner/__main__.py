@@ -24,7 +24,9 @@ from pathlib import Path
 from . import VERSION
 
 
-def _build_parser() -> argparse.ArgumentParser:
+def _build_parser(
+    plugin_dirs: list = None,
+) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="skyhigh-scanner",
         description="SkyHigh Scanner — Comprehensive Active Vulnerability Scanner",
@@ -44,9 +46,15 @@ CVE management:
   cve-import  Import seed CVE data for offline use
   cve-stats   Show CVE database statistics
   epss-sync   Fetch/update EPSS scores from FIRST.org API
+
+Plugins:
+  Use --plugin-dir to load custom scanner plugins from a directory.
+  Place plugins in skyhigh_scanner/plugins/ for auto-discovery.
         """,
     )
     parser.add_argument("--version", action="version", version=f"SkyHigh Scanner v{VERSION}")
+    parser.add_argument("--plugin-dir", action="append", default=[],
+                        help="Load plugins from directory (repeatable)")
 
     sub = parser.add_subparsers(dest="command", help="Scanner target type")
 
@@ -59,6 +67,16 @@ CVE management:
         _add_output_args(sp)
         _add_scan_args(sp)
 
+    # ── Plugin sub-commands ──────────────────────────────────────────
+    from .core.plugin_registry import discover_plugins
+    plugins = discover_plugins(extra_dirs=plugin_dirs)
+    for cmd, info in sorted(plugins.items()):
+        sp = sub.add_parser(cmd, help=info.help or f"Plugin: {info.name}")
+        _add_target_args(sp)
+        _add_credential_args(sp)
+        _add_output_args(sp)
+        _add_scan_args(sp)
+
     # ── CVE sub-commands ─────────────────────────────────────────────
     cve_sync = sub.add_parser("cve-sync", help="Sync CVE database from NVD API")
     cve_sync.add_argument("--api-key", help="NVD API key (get from nvd.nist.gov)")
@@ -66,6 +84,8 @@ CVE management:
                           help="Sync CVEs published since year (default: 2010)")
     cve_sync.add_argument("--incremental", action="store_true",
                           help="Only sync CVEs modified since last sync")
+    cve_sync.add_argument("--platform", nargs="+", metavar="KEY",
+                          help="Only sync specific platforms (e.g. --platform apache_httpd nginx)")
     cve_sync.add_argument("-v", "--verbose", action="store_true")
 
     cve_import = sub.add_parser("cve-import", help="Import seed CVE data")
@@ -134,10 +154,21 @@ def _add_output_args(parser: argparse.ArgumentParser) -> None:
     out.add_argument("--json", dest="json_file", help="Save JSON report to file")
     out.add_argument("--html", dest="html_file", help="Save HTML report to file")
     out.add_argument("--csv", dest="csv_file", help="Save CSV report to file")
+    out.add_argument("--pdf", dest="pdf_file",
+                     help="Save PDF report to file (requires: pip install weasyprint)")
+    out.add_argument("--sarif", dest="sarif_file",
+                     help="Save SARIF v2.1.0 report (GitHub Code Scanning, VS Code)")
+    out.add_argument("--baseline", dest="baseline_file",
+                     help="Compare against a previous JSON scan (show new/fixed findings)")
 
 
 def _add_scan_args(parser: argparse.ArgumentParser) -> None:
     scan = parser.add_argument_group("Scan Options")
+    scan.add_argument("--config", dest="config_file",
+                      help="Config file path (YAML/TOML) for default settings")
+    scan.add_argument("--profile", default="standard",
+                      choices=["quick", "standard", "full", "compliance", "cve-only"],
+                      help="Scan profile (default: standard)")
     scan.add_argument("--severity", default="LOW",
                       choices=["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"],
                       help="Minimum severity to report (default: LOW)")
@@ -148,6 +179,8 @@ def _add_scan_args(parser: argparse.ArgumentParser) -> None:
                       help="Max parallel connections (default: 10)")
     scan.add_argument("--no-discovery", action="store_true",
                       help="Skip host discovery (assume all hosts are up)")
+    scan.add_argument("--compliance", action="store_true",
+                      help="Map findings to compliance frameworks (NIST, ISO, PCI DSS, CIS)")
 
 
 # ── Credential setup helper ──────────────────────────────────────────
@@ -204,7 +237,20 @@ def _setup_credentials(args) -> "CredentialManager":
 def _run_scan(args) -> int:
     """Dispatch to the appropriate scanner module."""
     from .core.credential_manager import CredentialManager
-    from .core.reporting import generate_html_report
+    from .core.reporting import generate_html_report, generate_pdf_report
+    from .core.scan_profiles import get_profile
+    from .core.config import find_config, load_config, merge_config_into_args
+
+    # Load config file (CLI args override config values)
+    config_path = find_config(getattr(args, "config_file", None))
+    if config_path:
+        try:
+            config = load_config(config_path)
+            merge_config_into_args(config, args)
+            print(f"[*] Config loaded from {config_path}", file=sys.stderr)
+        except (ValueError, ImportError) as e:
+            print(f"[!] Config error: {e}", file=sys.stderr)
+            return 2
 
     if not args.ip_range and not args.target:
         print("[!] Error: Specify --range or --target", file=sys.stderr)
@@ -212,11 +258,13 @@ def _run_scan(args) -> int:
 
     creds = _setup_credentials(args)
     target_spec = args.ip_range or args.target
+    profile = get_profile(getattr(args, "profile", "standard"))
 
     print(f"\n{'='*60}", file=sys.stderr)
     print(f"  SkyHigh Scanner v{VERSION}", file=sys.stderr)
     print(f"  Target: {target_spec}", file=sys.stderr)
     print(f"  Mode: {args.command}", file=sys.stderr)
+    print(f"  Profile: {profile.name} — {profile.description}", file=sys.stderr)
     print(f"  Credentials: {creds.summary()}", file=sys.stderr)
     print(f"{'='*60}\n", file=sys.stderr)
 
@@ -230,49 +278,62 @@ def _run_scan(args) -> int:
             target=target_spec, credentials=creds,
             max_hosts=args.max_hosts, timeout=args.timeout,
             threads=args.threads, verbose=args.verbose,
-            no_discovery=args.no_discovery,
+            no_discovery=args.no_discovery, profile=profile,
         )
     elif command == "windows":
         from .scanners.windows_scanner import WindowsScanner
         scanner = WindowsScanner(
             target=target_spec, credentials=creds,
             max_hosts=args.max_hosts, timeout=args.timeout,
-            verbose=args.verbose,
+            verbose=args.verbose, profile=profile,
         )
     elif command == "linux":
         from .scanners.linux_scanner import LinuxScanner
         scanner = LinuxScanner(
             target=target_spec, credentials=creds,
             max_hosts=args.max_hosts, timeout=args.timeout,
-            verbose=args.verbose,
+            verbose=args.verbose, profile=profile,
         )
     elif command == "cisco":
         from .scanners.cisco_scanner import CiscoScanner
         scanner = CiscoScanner(
             target=target_spec, credentials=creds,
             max_hosts=args.max_hosts, timeout=args.timeout,
-            verbose=args.verbose,
+            verbose=args.verbose, profile=profile,
         )
     elif command == "webserver":
         from .scanners.webserver_scanner import WebServerScanner
         scanner = WebServerScanner(
             target=target_spec, credentials=creds,
             timeout=args.timeout, verbose=args.verbose,
+            profile=profile,
         )
     elif command == "middleware":
         from .scanners.middleware_scanner import MiddlewareScanner
         scanner = MiddlewareScanner(
             target=target_spec, credentials=creds,
             max_hosts=args.max_hosts, timeout=args.timeout,
-            verbose=args.verbose,
+            verbose=args.verbose, profile=profile,
         )
     elif command == "database":
         from .scanners.database_scanner import DatabaseScanner
         scanner = DatabaseScanner(
             target=target_spec, credentials=creds,
             max_hosts=args.max_hosts, timeout=args.timeout,
-            verbose=args.verbose,
+            verbose=args.verbose, profile=profile,
         )
+
+    # ── Plugin dispatch ───────────────────────────────────────────
+    if scanner is None:
+        from .core.plugin_registry import get_plugin
+        plugin = get_plugin(command)
+        if plugin:
+            scanner = plugin.scanner_class(
+                target=target_spec, credentials=creds,
+                max_hosts=getattr(args, "max_hosts", 256),
+                timeout=args.timeout, verbose=args.verbose,
+                profile=profile,
+            )
 
     if scanner is None:
         print(f"[!] Unknown command: {command}", file=sys.stderr)
@@ -281,8 +342,21 @@ def _run_scan(args) -> int:
     # Execute scan
     scanner.scan()
 
-    # Apply severity filter
-    scanner.filter_severity(args.severity)
+    # Apply severity filter (profile floor overrides CLI if stricter)
+    severity = args.severity
+    if profile.severity_floor:
+        from .core.scanner_base import ScannerBase
+        sev_order = ScannerBase.SEVERITY_ORDER
+        if sev_order.get(profile.severity_floor, 5) < sev_order.get(severity, 5):
+            severity = profile.severity_floor
+    scanner.filter_severity(severity)
+
+    # Compliance enrichment
+    if getattr(args, "compliance", False):
+        mapped = scanner.enrich_compliance()
+        if mapped:
+            print(f"[*] Compliance: {mapped} findings mapped to NIST/ISO/PCI/CIS controls",
+                  file=sys.stderr)
 
     # Console report
     scanner.print_report()
@@ -305,6 +379,35 @@ def _run_scan(args) -> int:
         with open(args.html_file, "w", encoding="utf-8") as fh:
             fh.write(report_html)
         scanner._info(f"HTML report saved to {args.html_file}")
+    if args.sarif_file:
+        scanner.save_sarif(args.sarif_file)
+    if args.pdf_file:
+        try:
+            pdf_bytes = generate_pdf_report(
+                scanner_name=scanner.SCANNER_NAME,
+                version=scanner.SCANNER_VERSION,
+                target_type=scanner.TARGET_TYPE,
+                findings=scanner.findings,
+                summary=scanner.summary(),
+                targets_scanned=scanner.targets_scanned,
+                targets_failed=scanner.targets_failed,
+            )
+            with open(args.pdf_file, "wb") as fh:
+                fh.write(pdf_bytes)
+            scanner._info(f"PDF report saved to {args.pdf_file}")
+        except RuntimeError as exc:
+            scanner._error(str(exc))
+
+    # Baseline comparison
+    baseline_file = getattr(args, "baseline_file", None)
+    if baseline_file:
+        from .core.baseline import load_baseline, compute_diff, print_diff_report
+        try:
+            baseline = load_baseline(baseline_file)
+            diff = compute_diff(scanner.findings, baseline)
+            print_diff_report(diff)
+        except (FileNotFoundError, ValueError) as e:
+            print(f"[!] Baseline error: {e}", file=sys.stderr)
 
     return scanner.exit_code()
 
@@ -314,16 +417,25 @@ def _run_cve_sync(args) -> int:
     from .core.cve_database import CVEDatabase
     from .core.cve_sync import CVESync
 
+    platforms = getattr(args, "platform", None)
+
     with CVEDatabase() as db:
         sync = CVESync(db, api_key=args.api_key, verbose=args.verbose)
         if args.incremental:
-            results = sync.sync_incremental()
+            last = sync.get_last_sync()
+            if last:
+                print(f"[*] Incremental sync — fetching changes since {last[:19]}", file=sys.stderr)
+            results = sync.sync_incremental(platforms=platforms)
         else:
-            results = sync.sync_all(since_year=args.since)
+            results = sync.sync_all(since_year=args.since, platforms=platforms)
+
+    if not results:
+        return 1
 
     total = sum(v for k, v in results.items() if not k.startswith("_"))
     internal_keys = sum(1 for k in results if k.startswith("_"))
-    print(f"\n[*] Sync complete: {total} CVEs across {len(results) - internal_keys} platforms")
+    mode = "Incremental sync" if args.incremental else "Sync"
+    print(f"\n[*] {mode} complete: {total} CVEs across {len(results) - internal_keys} platforms")
     kev = results.get("_cisa_kev_flagged", 0)
     if kev:
         print(f"[*] CISA KEV: {kev} actively exploited CVEs flagged")
@@ -377,6 +489,18 @@ def _run_cve_stats(_args) -> int:
     print(f"  EPSS Populated  : {stats.get('epss_populated', 0)}")
     print(f"  EPSS Avg Score  : {stats.get('epss_avg', 0.0):.2%}")
     print(f"  EPSS High Risk  : {stats.get('epss_high_risk', 0)} (score >= 50%)")
+
+    # Sync metadata
+    sync_meta = stats.get("sync_metadata", {})
+    last_full = sync_meta.get("last_full_sync")
+    last_epss = sync_meta.get("last_epss_sync")
+    if last_full or last_epss:
+        print(f"{'-'*50}")
+        if last_full:
+            print(f"  Last CVE Sync   : {last_full[:19]}")
+        if last_epss:
+            print(f"  Last EPSS Sync  : {last_epss[:19]}")
+
     print(f"{'-'*50}")
     for platform, count in sorted(stats.get("platforms", {}).items()):
         print(f"  {platform:30s}: {count}")
@@ -386,7 +510,13 @@ def _run_cve_stats(_args) -> int:
 
 # ── Main ─────────────────────────────────────────────────────────────
 def main() -> int:
-    parser = _build_parser()
+    # Pre-parse --plugin-dir before full parse so plugins can register
+    # their subcommands in the parser.
+    pre = argparse.ArgumentParser(add_help=False)
+    pre.add_argument("--plugin-dir", action="append", default=[])
+    pre_args, _ = pre.parse_known_args()
+
+    parser = _build_parser(plugin_dirs=pre_args.plugin_dir)
     args = parser.parse_args()
 
     if not args.command:

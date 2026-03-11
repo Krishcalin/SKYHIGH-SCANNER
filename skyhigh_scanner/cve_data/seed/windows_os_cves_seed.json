@@ -545,6 +545,48 @@
       "cisa_kev": true,
       "epss_score": 0.36,
       "affected": ">=10.0,<=10.0"
+    },
+    {
+      "cve_id": "CVE-2023-29336",
+      "platform": "windows",
+      "severity": "HIGH",
+      "cvss_v3": 7.8,
+      "cwe": "CWE-416",
+      "published": "2023-05-09",
+      "name": "Win32k Elevation of Privilege",
+      "description": "Win32k elevation of privilege vulnerability. A use-after-free in the Windows kernel-mode driver allows local attackers to gain SYSTEM privileges. Exploited in the wild.",
+      "recommendation": "Apply May 2023 cumulative update.",
+      "cisa_kev": true,
+      "epss_score": 0.35,
+      "affected": ">=6.1,<=10.0"
+    },
+    {
+      "cve_id": "CVE-2024-38213",
+      "platform": "windows",
+      "severity": "MEDIUM",
+      "cvss_v3": 6.5,
+      "cwe": "CWE-693",
+      "published": "2024-08-13",
+      "name": "Windows Mark of the Web Security Bypass",
+      "description": "Windows Mark of the Web (MotW) security feature bypass. Attacker can craft files that bypass SmartScreen warnings via copy/paste operations from WebDAV shares.",
+      "recommendation": "Apply August 2024 cumulative update.",
+      "cisa_kev": true,
+      "epss_score": 0.24,
+      "affected": ">=10.0,<=10.0"
+    },
+    {
+      "cve_id": "CVE-2023-45866",
+      "platform": "windows",
+      "severity": "MEDIUM",
+      "cvss_v3": 6.3,
+      "cwe": "CWE-287",
+      "published": "2023-12-08",
+      "name": "Bluetooth HID Keystroke Injection",
+      "description": "Bluetooth HID Hosts in multiple operating systems accept pairing without user confirmation, allowing an adjacent attacker to inject keystrokes by emulating a Bluetooth keyboard.",
+      "recommendation": "Apply December 2023 security updates. Disable Bluetooth when not in use.",
+      "cisa_kev": false,
+      "epss_score": 0.09,
+      "affected": ">=10.0,<=10.0"
     }
   ]
 }

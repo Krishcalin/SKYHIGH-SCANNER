@@ -80,8 +80,8 @@ class LinuxScanner(ScannerBase):
 
     def __init__(self, target: str, credentials: CredentialManager,
                  max_hosts: int = 256, timeout: int = 30,
-                 verbose: bool = False):
-        super().__init__(verbose=verbose)
+                 verbose: bool = False, profile=None):
+        super().__init__(verbose=verbose, profile=profile)
         self.target = target
         self.credentials = credentials
         self.max_hosts = max_hosts
@@ -120,17 +120,27 @@ class LinuxScanner(ScannerBase):
             distro = self._detect_distro(os_release)
             self._vprint(f"  Kernel: {kernel}, Distro: {distro}")
 
-            # Run check modules
-            self._check_ssh_config(ssh, host_ip)
-            self._check_account_security(ssh, host_ip)
-            self._check_file_permissions(ssh, host_ip)
-            self._check_network_security(ssh, host_ip)
-            self._check_services(ssh, host_ip)
-            self._check_filesystem(ssh, host_ip)
-            self._check_logging(ssh, host_ip)
-            self._check_kernel_params(ssh, host_ip)
-            self._check_packages(ssh, host_ip, distro)
-            self._check_cves(host_ip, kernel)
+            # Run check modules (gated by scan profile)
+            if self._check_enabled("crypto"):
+                self._check_ssh_config(ssh, host_ip)
+            if self._check_enabled("auth"):
+                self._check_account_security(ssh, host_ip)
+            if self._check_enabled("permissions"):
+                self._check_file_permissions(ssh, host_ip)
+            if self._check_enabled("network"):
+                self._check_network_security(ssh, host_ip)
+            if self._check_enabled("services"):
+                self._check_services(ssh, host_ip)
+            if self._check_enabled("filesystem"):
+                self._check_filesystem(ssh, host_ip)
+            if self._check_enabled("logging"):
+                self._check_logging(ssh, host_ip)
+            if self._check_enabled("kernel"):
+                self._check_kernel_params(ssh, host_ip)
+            if self._check_enabled("patches"):
+                self._check_packages(ssh, host_ip, distro)
+            if self._check_enabled("cve"):
+                self._check_cves(host_ip, kernel)
 
     def _detect_distro(self, os_release: str) -> str:
         if "ubuntu" in os_release.lower():

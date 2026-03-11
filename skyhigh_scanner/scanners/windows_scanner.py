@@ -133,8 +133,8 @@ class WindowsScanner(ScannerBase):
 
     def __init__(self, target: str, credentials: CredentialManager,
                  max_hosts: int = 256, timeout: int = 30,
-                 verbose: bool = False):
-        super().__init__(verbose=verbose)
+                 verbose: bool = False, profile=None):
+        super().__init__(verbose=verbose, profile=profile)
         self.target = target
         self.credentials = credentials
         self.max_hosts = max_hosts
@@ -179,15 +179,23 @@ class WindowsScanner(ScannerBase):
             os_version = self._extract_os_version(sys_info)
             self._vprint(f"  OS: {os_version}")
 
-            # Run check modules
-            self._check_patches(transport, host_ip, sys_info)
-            self._check_account_policies(transport, host_ip)
-            self._check_security_options(transport, host_ip)
-            self._check_registry(transport, host_ip)
-            self._check_services(transport, host_ip)
-            self._check_firewall(transport, host_ip)
-            self._check_audit_policy(transport, host_ip)
-            self._check_cves(host_ip, os_version)
+            # Run check modules (gated by scan profile)
+            if self._check_enabled("patches"):
+                self._check_patches(transport, host_ip, sys_info)
+            if self._check_enabled("auth"):
+                self._check_account_policies(transport, host_ip)
+            if self._check_enabled("crypto"):
+                self._check_security_options(transport, host_ip)
+            if self._check_enabled("registry"):
+                self._check_registry(transport, host_ip)
+            if self._check_enabled("services"):
+                self._check_services(transport, host_ip)
+            if self._check_enabled("firewall"):
+                self._check_firewall(transport, host_ip)
+            if self._check_enabled("logging"):
+                self._check_audit_policy(transport, host_ip)
+            if self._check_enabled("cve"):
+                self._check_cves(host_ip, os_version)
         finally:
             transport.disconnect()
 

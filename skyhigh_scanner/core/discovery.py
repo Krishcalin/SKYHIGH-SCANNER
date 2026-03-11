@@ -4,6 +4,13 @@ Network discovery, port scanning, and service fingerprinting.
 Discovers live hosts on a network, identifies open ports, and classifies
 targets by OS type and running services for dispatching to the appropriate
 scanner module.
+
+Fingerprinting techniques:
+  - TTL-based OS guessing (Windows=128, Linux=64, Cisco=255)
+  - SSH banner analysis (OpenSSH → Linux, Cisco SSH → Cisco IOS)
+  - HTTP Server header parsing (Apache, nginx, IIS, Tomcat, etc.)
+  - Telnet banner for Cisco detection
+  - Port-based heuristics (445 → Windows, 22 → Linux, etc.)
 """
 
 from __future__ import annotations
@@ -93,6 +100,8 @@ class HostInfo:
     services: List[ServiceInfo] = field(default_factory=list)
     reachable: bool = True
     scan_types: List[str] = field(default_factory=list)  # recommended scanner types
+    ttl: int = 0                # TTL from TCP probe (0 = unknown)
+    os_confidence: str = "low"  # low | medium | high
 
     def has_port(self, port: int) -> bool:
         return any(s.port == port for s in self.services)
@@ -102,6 +111,63 @@ class HostInfo:
             if s.port == port:
                 return s
         return None
+
+
+def guess_os_from_ttl(ttl: int) -> str:
+    """Guess OS family from TCP TTL value.
+
+    Common defaults:
+      - Linux/Unix: 64
+      - Windows: 128
+      - Cisco IOS / network devices: 255
+    """
+    if ttl <= 0:
+        return ""
+    if ttl <= 64:
+        return "Linux"
+    if ttl <= 128:
+        return "Windows"
+    if ttl <= 255:
+        return "Network Device"
+    return ""
+
+
+def _resolve_os(signals: List[str]) -> str:
+    """Pick the best OS guess from multiple signals using majority vote."""
+    if not signals:
+        return ""
+    # Normalise signals
+    normalised = []
+    for s in signals:
+        s_lower = s.lower()
+        if "cisco" in s_lower:
+            normalised.append("Cisco IOS")
+        elif "windows" in s_lower:
+            normalised.append("Windows")
+        elif "linux" in s_lower or "ubuntu" in s_lower or "debian" in s_lower:
+            normalised.append("Linux")
+        elif "network" in s_lower:
+            normalised.append("Network Device")
+        else:
+            normalised.append(s)
+    # Majority vote
+    from collections import Counter
+    counts = Counter(normalised)
+    return counts.most_common(1)[0][0]
+
+
+def _os_confidence(signals: List[str]) -> str:
+    """Determine confidence level based on number of corroborating signals."""
+    if not signals:
+        return "low"
+    unique = len(set(signals))
+    if unique == 1 and len(signals) >= 2:
+        return "high"
+    if len(signals) >= 3:
+        return "high"
+    if len(signals) >= 2:
+        return "medium"
+    return "low"
 
 
 class NetworkDiscovery:
@@ -157,6 +223,28 @@ class NetworkDiscovery:
 
         self._log(f"Found {len(reachable)} live hosts")
         return sorted(reachable, key=lambda x: socket.inet_aton(x))
+
+    # ── TTL probing ────────────────────────────────────────────────────
+    def _grab_ttl(self, ip: str) -> int:
+        """Grab TTL from a TCP connection to estimate OS family.
+
+        Connects to the first open port and reads the socket TTL option.
+        Returns 0 if TTL cannot be determined.
+        """
+        quick_ports = [80, 443, 22, 445, 3389]
+        for port in quick_ports:
+            try:
+                sock = socket.create_connection((ip, port), timeout=2)
+                try:
+                    ttl = sock.getsockopt(socket.IPPROTO_IP, socket.IP_TTL)
+                except (OSError, AttributeError):
+                    ttl = 0
+                sock.close()
+                if ttl > 0:
+                    return ttl
+            except (OSError, socket.timeout):
+                continue
+        return 0
 
     # ── Phase 2: Port scanning ───────────────────────────────────────
     def _scan_port(self, ip: str, port: int) -> Optional[ServiceInfo]:
@@ -240,29 +328,54 @@ class NetworkDiscovery:
 
     # ── Phase 4: OS / target classification ──────────────────────────
     def classify_host(self, host: HostInfo) -> None:
-        """Determine OS type and recommended scanner modules."""
-        scan_types = set()
+        """Determine OS type and recommended scanner modules.
 
+        Uses multiple signals for classification:
+          1. Port-based heuristics (445 → Windows, etc.)
+          2. SSH banner analysis (Cisco SSH, OpenSSH version)
+          3. Telnet banner (Cisco IOS prompt)
+          4. HTTP Server header (IIS → Windows, Apache → Linux)
+          5. TTL-based OS fingerprinting (128 → Windows, 64 → Linux)
+        """
+        scan_types: set = set()
+        os_signals: List[str] = []  # collect OS hints for confidence
+
+        # ── 1. Port-based OS detection ───────────────────────────────
         # Windows indicators
-        if host.has_port(445) or host.has_port(135) or host.has_port(5985):
-            host.os_guess = "Windows"
+        win_ports = {445, 135, 139, 3389, 5985, 5986}
+        win_port_hits = sum(1 for p in win_ports if host.has_port(p))
+        if win_port_hits:
+            os_signals.append("Windows")
             scan_types.add("windows")
 
-        # Cisco indicators
+        # ── 2. SSH banner analysis ───────────────────────────────────
         ssh_svc = host.get_service(22)
         if ssh_svc and ssh_svc.banner:
             banner_lower = ssh_svc.banner.lower()
             if "cisco" in banner_lower:
-                host.os_guess = "Cisco IOS"
+                os_signals.append("Cisco IOS")
+                scan_types.add("cisco")
+            elif "ubuntu" in banner_lower or "debian" in banner_lower:
+                os_signals.append("Linux (Ubuntu/Debian)")
+            elif "openssh" in banner_lower and "windows" not in scan_types:
+                os_signals.append("Linux")
+            elif "fortigate" in banner_lower or "fortios" in banner_lower:
+                os_signals.append("Network Device")
+
+        # ── 3. Telnet banner (Cisco IOS prompt) ──────────────────────
+        telnet_svc = host.get_service(23)
+        if telnet_svc and telnet_svc.banner:
+            banner_lower = telnet_svc.banner.lower()
+            if "cisco" in banner_lower or "ios" in banner_lower:
+                os_signals.append("Cisco IOS")
+                scan_types.add("cisco")
+            elif "user access verification" in banner_lower:
+                os_signals.append("Cisco IOS")
                 scan_types.add("cisco")
 
-        # Linux indicators (SSH but not Cisco, not Windows)
-        if host.has_port(22) and "cisco" not in scan_types and "windows" not in scan_types:
-            host.os_guess = host.os_guess or "Linux"
-            scan_types.add("linux")
-
-        # Web server detection
-        web_ports = [80, 443, 8080, 8443, 7001, 7002, 9043, 9060, 9080, 9443, 4848, 9990]
+        # ── 4. HTTP Server header analysis ───────────────────────────
+        web_ports = [80, 443, 8080, 8443, 7001, 7002,
+                     9043, 9060, 9080, 9443, 4848, 9990]
         for port in web_ports:
             svc = host.get_service(port)
             if svc:
@@ -270,39 +383,63 @@ class NetworkDiscovery:
                 banner = svc.banner.lower()
                 if "apache" in banner and "tomcat" not in banner:
                     svc.service = "apache-httpd"
+                    if "windows" not in scan_types:
+                        os_signals.append("Linux")
                 elif "nginx" in banner:
                     svc.service = "nginx"
-                elif "iis" in banner or "microsoft" in banner:
+                    if "windows" not in scan_types:
+                        os_signals.append("Linux")
+                elif "iis" in banner or "microsoft-httpapi" in banner:
                     svc.service = "iis"
+                    os_signals.append("Windows")
+                    scan_types.add("windows")
+                elif "tomcat" in banner:
+                    svc.service = "tomcat"
                 elif "weblogic" in banner or port in (7001, 7002):
                     svc.service = "weblogic"
                 elif "websphere" in banner or port in (9043, 9060, 9080):
                     svc.service = "websphere"
+                elif "lighttpd" in banner or "litespeed" in banner:
+                    svc.service = banner.split("/")[0].strip() if "/" in banner else banner.strip()
                 elif port in (4848,):
                     svc.service = "glassfish"
                 elif port in (9990,):
                     svc.service = "jboss"
 
-        # Middleware detection
+        # ── 5. TTL-based OS fingerprinting ───────────────────────────
+        if host.ttl > 0:
+            ttl_guess = guess_os_from_ttl(host.ttl)
+            if ttl_guess:
+                os_signals.append(ttl_guess)
+
+        # ── Linux fallback (SSH present, not Cisco/Windows) ──────────
+        if host.has_port(22) and "cisco" not in scan_types and "windows" not in scan_types:
+            os_signals.append("Linux")
+            scan_types.add("linux")
+
+        # ── Middleware detection ─────────────────────────────────────
         middleware_ports = {3000: "nodejs", 5000: "dotnet", 5001: "dotnet",
                            8080: "java", 8443: "java", 4848: "java", 9990: "java"}
-        for port, mw_type in middleware_ports.items():
+        for port in middleware_ports:
             if host.has_port(port):
                 scan_types.add("middleware")
                 break
 
-        # Database detection
+        # ── Database detection ───────────────────────────────────────
         db_ports = {1521: "oracle", 3306: "mysql", 27017: "mongodb",
                     5432: "postgresql", 6379: "redis"}
-        for port, db_type in db_ports.items():
+        for port in db_ports:
             if host.has_port(port):
                 scan_types.add("database")
                 break
 
-        # SNMP
+        # ── SNMP → likely network device ─────────────────────────────
         if host.has_port(161):
-            scan_types.add("cisco")  # SNMP typically on network devices
+            scan_types.add("cisco")
 
+        # ── Resolve OS guess with confidence ─────────────────────────
+        host.os_guess = _resolve_os(os_signals)
+        host.os_confidence = _os_confidence(os_signals)
         host.target_type = host.os_guess.lower().split()[0] if host.os_guess else "unknown"
         host.scan_types = sorted(scan_types)
 
@@ -321,18 +458,21 @@ class NetworkDiscovery:
             self._log("No live hosts found.")
             return []
 
-        # Phase 2 & 3: Port scan + enrich each host
+        # Phase 2 & 3: Port scan + TTL probe + enrich each host
         hosts: List[HostInfo] = []
         for ip in live_ips:
             self._log(f"Scanning ports on {ip}...")
             services = self.scan_ports(ip)
             if not services:
                 continue
-            host = HostInfo(ip=ip, services=services)
+            ttl = self._grab_ttl(ip)
+            host = HostInfo(ip=ip, services=services, ttl=ttl)
             self.enrich_services(host)
             self.classify_host(host)
             hosts.append(host)
-            self._log(f"  {ip}: {len(services)} ports open, type={host.scan_types}")
+            self._log(f"  {ip}: {len(services)} ports open, "
+                      f"TTL={ttl}, OS={host.os_guess} ({host.os_confidence}), "
+                      f"types={host.scan_types}")
 
         elapsed = round(time.time() - start, 1)
         self._log(f"Discovery complete: {len(hosts)} targets in {elapsed}s")
