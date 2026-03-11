@@ -41,7 +41,15 @@ skyhigh_scanner/
 │   ├── linux_scanner.py        # Linux (SSH)
 │   ├── middleware_scanner.py   # Java, .NET, PHP, Node.js dispatcher
 │   ├── webserver_scanner.py    # Web server dispatcher (HTTP probing)
+│   ├── dast_scanner.py         # DAST orchestrator (crawl → check dispatch)
 │   └── windows_scanner.py      # Windows (WinRM/SMB)
+├── dast/               # DAST engine
+│   ├── __init__.py             # Package exports (DastConfig, ScopePolicy)
+│   ├── config.py               # ScopePolicy, RateLimiter, RequestCounter, DastConfig
+│   ├── http_client.py          # DastHTTPClient (scope + rate + evidence)
+│   ├── crawler.py              # WebCrawler, SiteMap, _LinkFormParser, JS extraction
+│   └── checks/                 # Check modules (injection, xss, auth, etc.)
+│       └── __init__.py         # Check module interface
 ├── webservers/          # Web server check modules
 │   ├── apache_checks.py        # APACHE_CVES (13), ServerTokens, dir listing
 │   ├── iis_checks.py           # IIS_CVE_VERSIONS (10), headers, WebDAV
@@ -68,7 +76,7 @@ skyhigh_scanner/
 │   └── example_scanner.py      # Example plugin template
 └── templates/           # HTML report templates
 
-tests/                   # 521 pytest tests (all passing, 0 skipped)
+tests/                   # 616 pytest tests (all passing, 0 skipped)
 ├── conftest.py                # Shared fixtures
 ├── test_version_utils.py      # 20 tests
 ├── test_ip_utils.py           # 16 tests
@@ -87,7 +95,11 @@ tests/                   # 521 pytest tests (all passing, 0 skipped)
 ├── test_scan_profiles.py      # 36 tests (scan profiles & category gating)
 ├── test_auto_scanner.py       # 67 tests (auto scanner & parallel dispatch)
 ├── test_config.py             # 30 tests (config file loading)
-└── test_baseline.py           # 20 tests (baseline diff scanning)
+├── test_baseline.py           # 20 tests (baseline diff scanning)
+├── test_dast_config.py        # 29 tests (DAST config, scope, rate limiter)
+├── test_dast_http_client.py   # 22 tests (HTTP client, auth, evidence)
+├── test_dast_crawler.py       # 26 tests (crawler, HTML parser, JS extraction)
+└── test_dast_scanner.py       # 18 tests (DAST scanner orchestrator, CLI)
 ```
 
 ### CLI Commands
@@ -99,6 +111,7 @@ python -m skyhigh_scanner cisco      -r 10.1.1.0/24       # Cisco devices
 python -m skyhigh_scanner webserver  --target https://...  # Web servers
 python -m skyhigh_scanner middleware -r 10.0.0.0/24        # Middleware
 python -m skyhigh_scanner database   -r 10.0.0.0/24        # Databases
+python -m skyhigh_scanner dast       --target https://...  # DAST web app scanning
 python -m skyhigh_scanner cve-sync   --api-key KEY         # Full sync NVD API + EPSS + KEV
 python -m skyhigh_scanner cve-sync   --incremental          # Delta sync (changes since last sync)
 python -m skyhigh_scanner cve-sync   --platform nginx tomcat # Sync specific platforms only
@@ -114,7 +127,11 @@ python -m skyhigh_scanner epss-sync                         # Update EPSS scores
 - **Seed JSON schema**: `{"cve_id", "platform", "severity", "cvss_v3", "cwe", "published", "name", "description", "recommendation", "cisa_kev", "epss_score", "affected"}`
 - **Seed file formats**: Importer accepts both `[...]` arrays and `{"cves": [...]}` wrappers
 - **CPE_QUERIES**: Dict in `cve_sync.py` mapping platform keys to CPE 2.3 strings (49 entries)
-- **Rule ID formats**: `WEB-APACHE-001`, `CISCO-AUTH-001`, `DB-MONGO-NET-001`, `MW-JAVA-VER-001`
+- **Rule ID formats**: `WEB-APACHE-001`, `CISCO-AUTH-001`, `DB-MONGO-NET-001`, `MW-JAVA-VER-001`, `DAST-INJ-001`
+- **DAST safety controls**: ScopePolicy (mandatory host allowlist), RateLimiter (token bucket), RequestCounter (hard cap), warning banner
+- **DAST check dispatch**: 8 categories (injection, xss, auth_session, access_control, api_security, file_inclusion, info_disclosure, config_misconfig)
+- **DAST auth modes**: none, bearer, cookie, basic, form — configured via DastConfig
+- **DAST passive mode**: Skips injection, xss, file_inclusion, access_control checks
 - **Compliance mapping**: `compliance.py` maps CWE IDs + categories to NIST 800-53, ISO 27001, PCI DSS 4.0, CIS Controls v8
 - **`--compliance` flag**: Enriches findings with framework controls; shown in console, HTML, JSON, CSV
 - **SARIF v2.1.0 export**: `--sarif FILE` — GitHub Code Scanning / VS Code compatible
@@ -269,11 +286,24 @@ python -m skyhigh_scanner epss-sync                         # Update EPSS scores
 - Fixed 26 skipped tests: installed `requests`, mocked `weasyprint`
 - **521 tests all passing, 0 skipped**
 
+### Phase 14 — DAST Module Foundation (commit `fd78c88`)
+- **New `dast/` package**: ScopePolicy, RateLimiter, RequestCounter, DastConfig, DastHTTPClient, WebCrawler, SiteMap
+- **`scanners/dast_scanner.py`**: DastScanner(ScannerBase) orchestrator with crawl → check dispatch flow
+- **Safety controls**: Mandatory scope enforcement, token-bucket rate limiter, request hard cap, pre-scan warning banner
+- **WebCrawler**: BFS crawl with depth/page limits, form/link/API/JS endpoint discovery
+- **DastHTTPClient**: Scope-enforced requests.Session wrapper with auth modes (none/bearer/cookie/basic/form)
+- **CLI integration**: `dast` subcommand with 12 flags (scope, rate-limit, auth, passive-only, etc.)
+- **Scan profiles**: Added 9 DAST categories to CATEGORIES frozenset
+- **Reporting**: Added DAST red theme to reporting.py
+- **Plugin registry**: Added `dast` to BUILTIN_COMMANDS
+- **95 new tests** across 4 test files (29 + 22 + 26 + 18)
+- **616 tests all passing, 0 skipped**
+
 ## Testing
 ```bash
 pip install -r requirements-dev.txt    # pytest, pytest-cov, ruff, mypy
 pip install requests                    # Required for EPSS/sync tests
-pytest                                  # Run all 521 tests
+pytest                                  # Run all 616 tests
 pytest --cov=skyhigh_scanner.core       # With coverage
 pytest tests/test_seed_validation.py    # Seed integrity only
 ruff check skyhigh_scanner/ tests/      # Lint
@@ -300,6 +330,10 @@ ruff check skyhigh_scanner/ tests/      # Lint
 | `tests/test_auto_scanner.py` | 67 | Auto scanner, parallel dispatch, thread safety, progress |
 | `tests/test_config.py` | 30 | YAML/TOML parsing, find_config, merge_config, key validation |
 | `tests/test_baseline.py` | 20 | Finding keys, load baseline, compute diff, diff summary |
+| `tests/test_dast_config.py` | 29 | ScopePolicy, RateLimiter, RequestCounter, DastConfig, scope files |
+| `tests/test_dast_http_client.py` | 22 | RequestEvidence, scope enforcement, auth modes, convenience methods |
+| `tests/test_dast_crawler.py` | 26 | SiteMap, FormInfo, HTML parser, JS extraction, WebCrawler BFS |
+| `tests/test_dast_scanner.py` | 18 | DastScanner init, check dispatch, scan execution, CLI parsing |
 
 ### CI Pipeline (`.github/workflows/ci.yml`)
 - **test**: Matrix Python 3.9, 3.10, 3.11, 3.12 — `pytest --cov`

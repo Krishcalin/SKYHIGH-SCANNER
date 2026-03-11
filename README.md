@@ -13,7 +13,7 @@
   <a href="#supported-platforms"><img src="https://img.shields.io/badge/platforms-23-orange.svg" alt="23 Platforms" /></a>
   <a href="#cve-database"><img src="https://img.shields.io/badge/CVEs-32%2C000+-red.svg" alt="32,000+ CVEs" /></a>
   <a href="#features"><img src="https://img.shields.io/badge/rules-~800-purple.svg" alt="~800 Rules" /></a>
-  <a href="#testing"><img src="https://img.shields.io/badge/tests-521_passing-brightgreen.svg" alt="521 Tests" /></a>
+  <a href="#testing"><img src="https://img.shields.io/badge/tests-616_passing-brightgreen.svg" alt="616 Tests" /></a>
 </p>
 
 ---
@@ -46,6 +46,7 @@ Unlike static analysis tools, SkyHigh Scanner actively queries running systems �
 ### Key Highlights
 
 - **Active scanning** — Connects to live hosts via SSH, WinRM, Netmiko, SNMP, SMB, and HTTP
+- **DAST scanning** — Dynamic Application Security Testing with crawling, scope enforcement, and rate limiting
 - **Auto-discovery** — Scans IP ranges, fingerprints services, classifies hosts, and dispatches the right scanner
 - **~800 security rules** across 21 check modules
 - **32,000+ CVEs** via NVD API 2.0 sync (2010-2025) with CISA KEV + EPSS overlay
@@ -79,6 +80,7 @@ Unlike static analysis tools, SkyHigh Scanner actively queries running systems �
 | **Reporting** | Console (colored), JSON, CSV, SARIF, interactive HTML, PDF |
 | **Scan Profiles** | quick, standard, full, compliance, cve-only presets |
 | **Plugins** | Extensible scanner architecture with auto-discovery |
+| **DAST Scanning** | Web app testing with crawling, scope enforcement, rate limiting, auth modes |
 | **Baseline Diff** | Track new, fixed, and unchanged findings across scans |
 | **Config Files** | YAML/TOML config with built-in parser (no PyYAML needed) |
 
@@ -120,6 +122,18 @@ Unlike static analysis tools, SkyHigh Scanner actively queries running systems �
 | MySQL / MariaDB | Port 3306 | EOL versions, local_infile, bind-address, TLS |
 | MongoDB | Port 27017 | Authorization, bindIp, TLS, audit logging, unauthenticated access |
 
+### DAST (Dynamic Application Security Testing)
+| Feature | Details |
+|---------|---------|
+| **Crawling** | BFS web crawler with form, link, API endpoint, and JavaScript extraction |
+| **Scope Enforcement** | Mandatory host/path allowlist prevents out-of-scope requests |
+| **Rate Limiting** | Token-bucket algorithm (default 10 req/s) with configurable burst |
+| **Request Cap** | Hard limit on total requests (default 10,000) |
+| **Auth Modes** | None, Bearer token, Cookie, Basic auth, Form login |
+| **Passive Mode** | `--dast-passive-only` skips injection/XSS/file-inclusion checks |
+| **Safety Controls** | Pre-scan warning banner, `--dast-accept-risk` to suppress |
+| **Check Categories** | Injection, XSS, Auth/Session, Access Control, API Security, File Inclusion, Info Disclosure, Config/Misconfig |
+
 ---
 
 ## Architecture
@@ -129,32 +143,30 @@ Unlike static analysis tools, SkyHigh Scanner actively queries running systems �
                           |   CLI (__main__) |
                           +--------+---------+
                                    |
-                    +--------------+--------------+
-                    |                             |
-              +-----+------+            +--------+--------+
-              | AutoScanner |            | Direct Scanners |
-              +-----+------+            +--------+--------+
-                    |                             |
-            +-------+-------+        +-----------+-----------+
-            | NetworkDiscovery|       | windows | linux | cisco |
-            +-------+-------+        | webserver | middleware  |
-                    |                 | database               |
-            +-------+-------+        +------------------------+
-            |   Classify &   |
-            |   Dispatch     |
-            +----------------+
-                    |
-     +--------------+--------------+
-     |              |              |
-+----+----+   +-----+-----+  +----+----+
-|Transport|   |CVE Database|  |Reporting|
-| SSH     |   | SQLite     |  | HTML    |
-| WinRM   |   | NVD Sync   |  | JSON    |
-| Netmiko |   | CISA KEV   |  | CSV     |
-| SNMP    |   | Seed Data  |  | Console |
-| SMB     |   +------------+  +---------+
-| HTTP    |
-+---------+
+              +--------------------+--------------------+
+              |                    |                     |
+        +-----+------+    +-------+-------+    +--------+--------+
+        | AutoScanner |    | DAST Scanner  |    | Direct Scanners |
+        +-----+------+    +-------+-------+    +--------+--------+
+              |                    |                     |
+      +-------+-------+   +-------+-------+   +---------+---------+
+      |NetworkDiscovery|   | WebCrawler    |   | windows | linux   |
+      +-------+-------+   | ScopePolicy   |   | cisco | webserver |
+              |            | RateLimiter   |   | middleware | db   |
+      +-------+-------+   | DastHTTPClient|   +-------------------+
+      |   Classify &   |   +-------+-------+
+      |   Dispatch     |           |
+      +----------------+   +-------+-------+
+              |            | Check Modules |
+   +----------+----------+ | injection     |
+   |          |          | | xss, auth     |
++--+---+ +---+----+ +---+-| api, config   |
+|Trans-| |CVE DB  | |Report+---------------+
+|port  | | SQLite | | HTML |
+| SSH  | | NVD    | | JSON |
+| WinRM| | KEV    | | CSV  |
+| HTTP | +--------+ +------+
++------+
 ```
 
 ### Core Components
@@ -268,6 +280,9 @@ python -m skyhigh_scanner middleware -t 10.0.1.50 -u admin -p secret
 
 # Scan databases on a host
 python -m skyhigh_scanner database -t 10.0.1.50
+
+# DAST scan a web application
+python -m skyhigh_scanner dast --target https://app.example.com --dast-accept-risk
 ```
 
 ### 4. Generate Reports
@@ -301,6 +316,7 @@ Commands:
   webserver     Scan web servers via HTTP
   middleware    Scan middleware runtimes via SSH/WinRM
   database      Scan database services
+  dast          Dynamic Application Security Testing (web app scanning)
   cve-sync      Sync CVEs from NVD API 2.0 (includes EPSS + KEV)
   cve-import    Import seed CVE data from bundled JSON files
   cve-stats     Display CVE database statistics (includes EPSS coverage)
@@ -328,6 +344,41 @@ Commands:
 | `--pdf FILE` | Save findings to PDF report (requires `weasyprint`) |
 | `-v, --verbose` | Enable verbose output |
 | `--version` | Show scanner version |
+
+### DAST Options
+
+```bash
+# Basic DAST scan
+python -m skyhigh_scanner dast --target https://app.example.com
+
+# Passive-only mode (no injection payloads)
+python -m skyhigh_scanner dast --target https://app.example.com --dast-passive-only
+
+# Custom rate limit and auth
+python -m skyhigh_scanner dast --target https://app.example.com \
+  --dast-rate-limit 20 --dast-auth-mode bearer --dast-auth-token mytoken
+
+# Skip crawling (test seed URL only)
+python -m skyhigh_scanner dast --target https://app.example.com --dast-no-crawl
+
+# Accept risk (suppress warning banner)
+python -m skyhigh_scanner dast --target https://app.example.com --dast-accept-risk
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--target URL` | (required) | Target URL to scan |
+| `--dast-scope FILE` | auto | JSON scope file (auto-generated from target if omitted) |
+| `--dast-rate-limit N` | 10.0 | Max requests per second |
+| `--dast-max-requests N` | 10000 | Hard cap on total requests |
+| `--dast-crawl-depth N` | 5 | Maximum crawl depth |
+| `--dast-auth-mode MODE` | none | Auth mode: `none`, `bearer`, `cookie`, `basic`, `form` |
+| `--dast-auth-token TOKEN` | — | Auth token/credentials |
+| `--dast-login-url URL` | — | Login URL for form-based auth |
+| `--dast-passive-only` | false | Skip active injection checks |
+| `--dast-no-crawl` | false | Skip crawling, test seed URL only |
+| `--dast-accept-risk` | false | Suppress pre-scan warning banner |
+| `--dast-follow-subdomains` | false | Include subdomains in scope |
 
 ### CVE Sync Options
 
@@ -436,6 +487,7 @@ The scanner syncs CVEs for 47 CPE (Common Platform Enumeration) strings covering
 | Web Server | `WEB-{SERVER}-{NNN}` | `WEB-IIS-002` |
 | Middleware | `MW-{PLATFORM}-{CAT}-{NNN}` | `MW-JAVA-EOL-001` |
 | Database | `DB-{PLATFORM}-{CAT}-{NNN}` | `DB-MYSQL-CFG-001` |
+| DAST | `DAST-{CATEGORY}-{NNN}` | `DAST-INJ-001` |
 | CVE | `CVE-YYYY-NNNNN` | `CVE-2021-44228` |
 
 ### Check Categories
@@ -553,7 +605,7 @@ SKYHIGH-SCANNER/
 ├── .github/workflows/
 │   └── ci.yml                    # GitHub Actions CI (test, lint, seed validation)
 │
-├── tests/                        # Test suite (521 tests)
+├── tests/                        # Test suite (616 tests)
 │   ├── conftest.py               # Shared fixtures
 │   ├── test_version_utils.py     # Version parsing & range matching (20 tests)
 │   ├── test_ip_utils.py          # IP range expansion & DNS (16 tests)
@@ -572,7 +624,11 @@ SKYHIGH-SCANNER/
 │   ├── test_scan_profiles.py     # Scan profiles & category gating (36 tests)
 │   ├── test_auto_scanner.py      # Auto scanner & parallel dispatch (67 tests)
 │   ├── test_config.py            # Config file loading (30 tests)
-│   └── test_baseline.py          # Baseline diff scanning (20 tests)
+│   ├── test_baseline.py          # Baseline diff scanning (20 tests)
+│   ├── test_dast_config.py       # DAST config, scope, rate limiter (29 tests)
+│   ├── test_dast_http_client.py  # DAST HTTP client, auth, evidence (22 tests)
+│   ├── test_dast_crawler.py      # Web crawler, HTML parser, JS extraction (26 tests)
+│   └── test_dast_scanner.py      # DAST scanner orchestrator, CLI (18 tests)
 │
 └── skyhigh_scanner/              # Main package
     ├── __init__.py               # VERSION = "1.0.0"
@@ -597,12 +653,21 @@ SKYHIGH-SCANNER/
     │
     ├── scanners/                 # Scanner modules
     │   ├── auto_scanner.py       # Auto-discover & dispatch
+    │   ├── dast_scanner.py       # DAST orchestrator (crawl → check dispatch)
     │   ├── windows_scanner.py    # Windows (WinRM/SMB)
     │   ├── linux_scanner.py      # Linux (SSH)
     │   ├── cisco_scanner.py      # Cisco IOS/IOS-XE (Netmiko/SNMP)
     │   ├── webserver_scanner.py  # Web server fingerprint & dispatch
     │   ├── middleware_scanner.py  # Middleware detection & dispatch
     │   └── database_scanner.py   # Database detection & dispatch
+    │
+    ├── dast/                     # DAST engine
+    │   ├── __init__.py           # Package exports
+    │   ├── config.py             # ScopePolicy, RateLimiter, RequestCounter, DastConfig
+    │   ├── http_client.py        # DastHTTPClient (scope + rate limiting + evidence)
+    │   ├── crawler.py            # WebCrawler, SiteMap, HTML parser, JS extraction
+    │   └── checks/               # Check modules (injection, xss, auth, etc.)
+    │       └── __init__.py       # Check module interface
     │
     ├── webservers/               # Web server check modules
     │   ├── iis_checks.py, apache_checks.py, nginx_checks.py
@@ -679,9 +744,13 @@ pytest tests/test_seed_validation.py -v
 | Auto scanner & parallel | 67 | N/A (cross-module) |
 | Config file loading | 30 | N/A (cross-module) |
 | Baseline diff scanning | 20 | N/A (cross-module) |
+| DAST config & scope | 29 | N/A (cross-module) |
+| DAST HTTP client | 22 | N/A (cross-module) |
+| DAST crawler | 26 | N/A (cross-module) |
+| DAST scanner | 18 | N/A (cross-module) |
 | Seed file validation | 12 | N/A |
 | CLI argument parsing | 25 | N/A |
-| **Total** | **521** | |
+| **Total** | **616** | |
 
 ### CI Pipeline
 
@@ -713,7 +782,7 @@ Contributions are welcome! Here's how to get started:
 2. **Create** a feature branch: `git checkout -b feature/my-feature`
 3. **Install** dev dependencies: `pip install -r requirements-dev.txt`
 4. **Make** your changes
-5. **Run tests**: `pytest` -- all 521 tests must pass
+5. **Run tests**: `pytest` -- all 616 tests must pass
 6. **Lint**: `ruff check skyhigh_scanner/ tests/`
 7. **Commit**: `git commit -m "Add my feature"`
 8. **Push**: `git push origin feature/my-feature`
