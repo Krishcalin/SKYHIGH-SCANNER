@@ -2,9 +2,15 @@
 
 from __future__ import annotations
 
+import json
 from unittest.mock import MagicMock
 
-from skyhigh_scanner.dast.checks.api_security import run_checks
+from skyhigh_scanner.dast.checks.api_security import (
+    _check_graphql_alias_dos,
+    _check_graphql_batch_dos,
+    _check_graphql_deep_nesting_dos,
+    run_checks,
+)
 from skyhigh_scanner.dast.crawler import APIEndpoint, SiteMap
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -231,3 +237,118 @@ class TestRunChecks:
         client = _mock_client()
         findings = run_checks(client, "https://example.com", _empty_sitemap())
         assert isinstance(findings, list)
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# GraphQL DoS (DAST-API-009 / 010 / 011)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+class TestGraphQLBatchDoS:
+    """DAST-API-009: GraphQL query batching DoS."""
+
+    def test_batch_accepted(self):
+        """Detect when batch of 100 queries all execute."""
+        client = MagicMock()
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.headers = {}
+        batch_result = [{"data": {"__typename": "Query"}}] * 100
+        resp.text = json.dumps(batch_result)
+        resp.json.return_value = batch_result
+        client.post.return_value = resp
+        findings = []
+        _check_graphql_batch_dos(client, "https://example.com", findings)
+        api_009 = [f for f in findings if f.rule_id == "DAST-API-009"]
+        assert len(api_009) >= 1
+        assert api_009[0].severity == "MEDIUM"
+        assert api_009[0].cwe == "CWE-400"
+
+    def test_batch_rejected(self):
+        """No finding when batch is rejected."""
+        client = MagicMock()
+        resp = MagicMock()
+        resp.status_code = 400
+        resp.headers = {}
+        resp.text = '{"errors": [{"message": "batch limit exceeded"}]}'
+        client.post.return_value = resp
+        findings = []
+        _check_graphql_batch_dos(client, "https://example.com", findings)
+        api_009 = [f for f in findings if f.rule_id == "DAST-API-009"]
+        assert len(api_009) == 0
+
+
+class TestGraphQLAliasDoS:
+    """DAST-API-010: GraphQL field aliasing DoS."""
+
+    def test_alias_accepted(self):
+        """Detect when 100 aliases are all returned."""
+        client = MagicMock()
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.headers = {}
+        alias_data = {f"a{i}": "Query" for i in range(100)}
+        resp.text = json.dumps({"data": alias_data})
+        resp.json.return_value = {"data": alias_data}
+        client.post.return_value = resp
+        findings = []
+        _check_graphql_alias_dos(client, "https://example.com", findings)
+        api_010 = [f for f in findings if f.rule_id == "DAST-API-010"]
+        assert len(api_010) >= 1
+
+    def test_alias_rejected(self):
+        """No finding when aliases are limited."""
+        client = MagicMock()
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.headers = {}
+        alias_data = {f"a{i}": "Query" for i in range(5)}
+        resp.text = json.dumps({"data": alias_data})
+        resp.json.return_value = {"data": alias_data}
+        client.post.return_value = resp
+        findings = []
+        _check_graphql_alias_dos(client, "https://example.com", findings)
+        api_010 = [f for f in findings if f.rule_id == "DAST-API-010"]
+        assert len(api_010) == 0
+
+
+class TestGraphQLDeepNesting:
+    """DAST-API-011: GraphQL deep nesting DoS."""
+
+    def test_nesting_causes_error(self):
+        """Detect when deep nesting causes 5xx."""
+        client = MagicMock()
+
+        call_idx = [0]
+
+        def fake_post(*args, **kwargs):
+            call_idx[0] += 1
+            resp = MagicMock()
+            resp.headers = {}
+            if call_idx[0] == 1:
+                # Baseline introspection query - OK
+                resp.status_code = 200
+                resp.text = '{"data": {}}'
+            else:
+                # Deep nesting query - server error
+                resp.status_code = 500
+                resp.text = "Internal Server Error"
+            return resp
+
+        client.post.side_effect = fake_post
+        findings = []
+        _check_graphql_deep_nesting_dos(client, "https://example.com", findings)
+        api_011 = [f for f in findings if f.rule_id == "DAST-API-011"]
+        assert len(api_011) >= 1
+
+    def test_nesting_handled(self):
+        """No finding when nesting is properly limited."""
+        client = MagicMock()
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.headers = {}
+        resp.text = '{"errors": [{"message": "max depth exceeded"}]}'
+        client.post.return_value = resp
+        findings = []
+        _check_graphql_deep_nesting_dos(client, "https://example.com", findings)
+        api_011 = [f for f in findings if f.rule_id == "DAST-API-011"]
+        assert len(api_011) == 0

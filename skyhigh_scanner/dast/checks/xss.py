@@ -8,13 +8,15 @@ Active checks that test for XSS vulnerabilities:
   - XSS in HTTP headers (Referer, User-Agent)
   - XSS via error pages
 
-Rule IDs: DAST-XSS-001 through DAST-XSS-005
+Rule IDs: DAST-XSS-001 through DAST-XSS-007
 """
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import re
+import time
 from typing import TYPE_CHECKING
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
@@ -73,6 +75,15 @@ DOM_XSS_SOURCES: list[tuple[re.Pattern, str]] = [
     (re.compile(r"window\.name"), "window.name"),
     (re.compile(r"document\.cookie"), "document.cookie"),
 ]
+
+# ── Stored XSS constants ────────────────────────────────────────
+
+STORED_XSS_CANARY_PREFIX = "SKYHIGH_STORED_"
+MAX_STORED_XSS_FORMS = 5
+MAX_STORED_XSS_RECHECK_PAGES = 3
+
+# Form types to skip for stored XSS
+SKIP_FORM_TYPES = re.compile(r"search|file|upload|import|attach|login|logout", re.I)
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -388,6 +399,159 @@ def _check_xss_error_pages(
         ))
 
 
+def _generate_canary(form_action: str) -> str:
+    """Generate a unique canary per form action."""
+    h = hashlib.sha256(
+        f"{form_action}{time.time()}".encode(),
+    ).hexdigest()[:8]
+    return f"{STORED_XSS_CANARY_PREFIX}{h}"
+
+
+def _check_stored_xss(
+    client: DastHTTPClient,
+    sitemap: SiteMap,
+    findings: list[Finding],
+) -> None:
+    """DAST-XSS-006 / DAST-XSS-007: Stored XSS via form submission."""
+    # Phase 1: Filter eligible forms and submit payloads
+    eligible_forms = []
+    for form in sitemap.forms:
+        if form.method.upper() != "POST":
+            continue
+        if form.has_file_upload:
+            continue
+        # Skip search/login/file upload forms
+        action_path = urlparse(form.action).path.lower()
+        if SKIP_FORM_TYPES.search(action_path):
+            continue
+        # Must have at least one text input field
+        text_fields = [
+            f for f in form.fields
+            if f.field_type in ("text", "textarea", "email", "")
+            and f.name
+        ]
+        if not text_fields:
+            continue
+        eligible_forms.append((form, text_fields))
+
+    if not eligible_forms:
+        return
+
+    # Submit payloads and track canaries
+    canaries: dict[str, str] = {}  # canary -> form_action
+
+    for form, _text_fields in eligible_forms[:MAX_STORED_XSS_FORMS]:
+        canary = _generate_canary(form.action)
+        payload = f"<img src=x onerror={canary}>"
+
+        form_data: dict[str, str] = {}
+        for f in form.fields:
+            if f.field_type == "hidden" and f.value:
+                form_data[f.name] = f.value
+            elif f.name and f.field_type in ("text", "textarea", "email", ""):
+                form_data[f.name] = payload
+            elif f.name:
+                form_data[f.name] = "test"
+
+        try:
+            client.post(form.action, data=form_data, capture_evidence=False)
+            canaries[canary] = form.action
+        except Exception as exc:
+            logger.debug(
+                "Stored XSS inject failed for %s: %s", form.action, exc,
+            )
+
+    if not canaries:
+        return
+
+    # Phase 2: Re-crawl pages to check if canaries persist
+    check_urls = list(sitemap.urls)[:MAX_STORED_XSS_RECHECK_PAGES * len(canaries)]
+
+    for url in check_urls:
+        try:
+            resp = client.get(url, capture_evidence=True)
+        except Exception:
+            continue
+
+        for canary, form_action in list(canaries.items()):
+            if canary not in resp.text:
+                continue
+
+            # Check if canary appears with unescaped HTML
+            unescaped_in_response = (
+                f"onerror={canary}" in resp.text
+                or f"<img src=x onerror={canary}>" in resp.text
+            )
+
+            if unescaped_in_response:
+                findings.append(_finding(
+                    rule_id="DAST-XSS-006",
+                    name=f"Stored XSS via form: {form_action}",
+                    severity="CRITICAL",
+                    file_path=url,
+                    line_content=(
+                        f"Canary {canary} injected via {form_action} "
+                        f"found unescaped at {url}"
+                    ),
+                    description=(
+                        f"Stored XSS detected. A payload submitted to "
+                        f"{form_action} was stored and rendered unescaped "
+                        f"at {url}. An attacker can inject persistent "
+                        "JavaScript that executes for every user visiting "
+                        "the affected page."
+                    ),
+                    recommendation=(
+                        "Encode all stored user input before rendering. "
+                        "Use context-aware output encoding on both input "
+                        "and output. Implement a strict Content Security "
+                        "Policy."
+                    ),
+                    cwe="CWE-79",
+                    evidence=[{
+                        "method": "GET",
+                        "url": url,
+                        "status": resp.status_code,
+                        "payload": f"<img src=x onerror={canary}>",
+                        "proof": resp.text[:500],
+                    }],
+                ))
+                canaries.pop(canary, None)
+            else:
+                # Canary text persists but HTML is encoded
+                findings.append(_finding(
+                    rule_id="DAST-XSS-007",
+                    name=f"Stored XSS canary persists (encoded): {form_action}",
+                    severity="HIGH",
+                    file_path=url,
+                    line_content=(
+                        f"Canary {canary} stored via {form_action} "
+                        f"found encoded at {url}"
+                    ),
+                    description=(
+                        f"User input submitted to {form_action} is stored "
+                        f"and appears at {url} with partial HTML encoding. "
+                        "While the current encoding may prevent execution, "
+                        "this indicates user content is persisted and "
+                        "rendered, which may be exploitable in different "
+                        "rendering contexts."
+                    ),
+                    recommendation=(
+                        "Verify output encoding is applied consistently "
+                        "across all rendering contexts (HTML, JavaScript, "
+                        "CSS, URL). Use framework-provided auto-escaping."
+                    ),
+                    cwe="CWE-79",
+                    evidence=[{
+                        "method": "GET",
+                        "url": url,
+                        "status": resp.status_code,
+                        "payload": f"<img src=x onerror={canary}>",
+                        "proof": resp.text[:500],
+                    }],
+                ))
+                canaries.pop(canary, None)
+
+
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Module entry point
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -411,5 +575,6 @@ def run_checks(
     _check_dom_xss(client, sitemap, findings)
     _check_xss_in_headers(client, target_url, findings)
     _check_xss_error_pages(client, target_url, findings)
+    _check_stored_xss(client, sitemap, findings)
 
     return findings

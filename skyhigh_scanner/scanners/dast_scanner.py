@@ -57,6 +57,9 @@ class DastScanner(ScannerBase):
         "file_inclusion":   "file_inclusion",
         "info_disclosure":  "info_disclosure",
         "config_misconfig": "config_misconfig",
+        "ssrf":             "ssrf",
+        "xxe":              "xxe",
+        "jwt":              "jwt_security",
     }
 
     def __init__(
@@ -153,6 +156,21 @@ class DastScanner(ScannerBase):
                 sitemap.urls.add(url)
                 self._vprint("Crawling disabled — testing seed URL only")
 
+            # Phase 1.3: WAF detection
+            try:
+                from ..dast.waf_detect import detect_waf
+                waf = detect_waf(client, url)
+                if waf.detected:
+                    self._warn(
+                        f"WAF detected: {waf.name} "
+                        f"(confidence: {waf.confidence})"
+                    )
+                    sitemap.waf_info = waf
+            except Exception as exc:
+                logging.getLogger(__name__).debug(
+                    "WAF detection failed: %s", exc,
+                )
+
             # Phase 1.5: Authentication
             auth_mgr = AuthManager(
                 client=client,
@@ -190,6 +208,10 @@ class DastScanner(ScannerBase):
                 "status_codes": cs.status_codes,
                 "content_types": cs.content_types,
                 "duration_seconds": round(cs.duration_seconds, 2),
+                "api_endpoints_list": [
+                    {"url": ep.url, "method": ep.method, "source": ep.source}
+                    for ep in sitemap.api_endpoints[:50]
+                ],
             }
             if sitemap.tech_fingerprint:
                 self._crawl_stats["tech_fingerprint"] = {
@@ -240,6 +262,7 @@ class DastScanner(ScannerBase):
                 continue
             if self.dast_config.passive_only and category in (
                 "injection", "xss", "file_inclusion", "access_control",
+                "ssrf", "xxe", "jwt",
             ):
                 self._vprint(f"Skipping {category} (passive-only mode)")
                 continue

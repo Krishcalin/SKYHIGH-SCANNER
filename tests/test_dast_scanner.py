@@ -57,7 +57,7 @@ class TestDastScannerDispatch:
         expected = {
             "injection", "xss", "auth_session", "access_control",
             "api_security", "file_inclusion", "info_disclosure",
-            "config_misconfig",
+            "config_misconfig", "ssrf", "xxe", "jwt",
         }
         assert set(DastScanner.CHECK_DISPATCH.keys()) == expected
 
@@ -293,8 +293,8 @@ class TestConcurrentDispatch:
         scanner._run_check_module = track_run
         scanner._dispatch_checks(mock_client, "https://example.com", sitemap)
 
-        # All 8 check modules should be called
-        assert len(called) == 8
+        # All 11 check modules should be called
+        assert len(called) == 11
 
     def test_dispatch_handles_import_errors(self):
         config = DastConfig(

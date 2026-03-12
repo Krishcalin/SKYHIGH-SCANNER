@@ -4,7 +4,12 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from skyhigh_scanner.dast.checks.xss import CANARY, run_checks
+from skyhigh_scanner.dast.checks.xss import (
+    CANARY,
+    STORED_XSS_CANARY_PREFIX,
+    _check_stored_xss,
+    run_checks,
+)
 from skyhigh_scanner.dast.crawler import FormField, FormInfo, SiteMap
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -180,3 +185,148 @@ class TestRunChecks:
         client = _mock_client()
         findings = run_checks(client, "https://example.com", _empty_sitemap())
         assert isinstance(findings, list)
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Stored XSS (DAST-XSS-006 / DAST-XSS-007)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+class TestStoredXSS:
+    """DAST-XSS-006/007: Stored XSS via form submission."""
+
+    def test_stored_xss_detected(self):
+        """Detect when canary appears unescaped in subsequent GET."""
+        sm = SiteMap()
+        sm.forms = [FormInfo(
+            url="https://example.com/comments",
+            action="https://example.com/comments",
+            method="POST",
+            fields=[FormField(name="comment", field_type="text")],
+        )]
+        sm.urls = {"https://example.com/comments"}
+
+        client = MagicMock()
+        # POST succeeds
+        client.post.return_value = MagicMock(text="OK", status_code=200, headers={})
+
+        # GET returns the canary unescaped
+        def fake_get(*args, **kwargs):
+            resp = MagicMock()
+            resp.status_code = 200
+            resp.headers = {}
+            # Include any SKYHIGH_STORED_ canary unescaped with onerror
+            resp.text = f"<html>Comment: <img src=x onerror={STORED_XSS_CANARY_PREFIX}abcd1234></html>"
+            return resp
+
+        client.get.return_value = fake_get()
+        # Need to make client.get match the canary that _generate_canary produces
+        # Instead, mock to reflect whatever was posted
+        call_count = [0]
+
+        def smart_get(*args, **kwargs):
+            call_count[0] += 1
+            resp = MagicMock()
+            resp.status_code = 200
+            resp.headers = {}
+            # After post, get should return any canary that was submitted
+            post_calls = client.post.call_args_list
+            if post_calls:
+                # Extract canary from posted data
+                data = post_calls[0].kwargs.get("data", {}) if post_calls[0].kwargs else {}
+                if not data and len(post_calls[0].args) > 1:
+                    data = post_calls[0].args[1] if len(post_calls[0].args) > 1 else {}
+                for v in data.values():
+                    if STORED_XSS_CANARY_PREFIX in str(v):
+                        resp.text = f"<html>{v}</html>"
+                        return resp
+            resp.text = "<html>Normal</html>"
+            return resp
+
+        client.get.side_effect = smart_get
+
+        findings = []
+        _check_stored_xss(client, sm, findings)
+        xss_006 = [f for f in findings if f.rule_id == "DAST-XSS-006"]
+        assert len(xss_006) >= 1
+        assert xss_006[0].severity == "CRITICAL"
+
+    def test_stored_xss_no_forms(self):
+        """No finding when no eligible forms."""
+        client = _mock_client()
+        sm = _empty_sitemap()
+        findings = []
+        _check_stored_xss(client, sm, findings)
+        assert len(findings) == 0
+
+    def test_stored_xss_encoded(self):
+        """Canary appears encoded — DAST-XSS-007."""
+        sm = SiteMap()
+        sm.forms = [FormInfo(
+            url="https://example.com/feedback",
+            action="https://example.com/feedback",
+            method="POST",
+            fields=[FormField(name="message", field_type="textarea")],
+        )]
+        sm.urls = {"https://example.com/feedback"}
+
+        client = MagicMock()
+        client.post.return_value = MagicMock(text="OK", status_code=200, headers={})
+
+        def smart_get(*args, **kwargs):
+            resp = MagicMock()
+            resp.status_code = 200
+            resp.headers = {}
+            post_calls = client.post.call_args_list
+            if post_calls:
+                data = post_calls[0].kwargs.get("data", {}) if post_calls[0].kwargs else {}
+                for v in data.values():
+                    if STORED_XSS_CANARY_PREFIX in str(v):
+                        # Return canary text but WITHOUT the onerror= unescaped
+                        import re as _re
+                        canary = _re.search(r"SKYHIGH_STORED_\w+", str(v))
+                        if canary:
+                            resp.text = f"<html>Comment: {canary.group()}</html>"
+                            return resp
+            resp.text = "<html>Normal</html>"
+            return resp
+
+        client.get.side_effect = smart_get
+
+        findings = []
+        _check_stored_xss(client, sm, findings)
+        xss_007 = [f for f in findings if f.rule_id == "DAST-XSS-007"]
+        assert len(xss_007) >= 1
+        assert xss_007[0].severity == "HIGH"
+
+    def test_stored_xss_skip_search_form(self):
+        """Search forms are skipped."""
+        sm = SiteMap()
+        sm.forms = [FormInfo(
+            url="https://example.com/search",
+            action="https://example.com/search",
+            method="POST",
+            fields=[FormField(name="q", field_type="text")],
+        )]
+        client = _mock_client()
+        findings = []
+        _check_stored_xss(client, sm, findings)
+        assert len(findings) == 0
+
+    def test_stored_xss_skip_file_upload(self):
+        """File upload forms are skipped."""
+        sm = SiteMap()
+        sm.forms = [FormInfo(
+            url="https://example.com/upload",
+            action="https://example.com/upload",
+            method="POST",
+            fields=[FormField(name="file", field_type="file")],
+            has_file_upload=True,
+        )]
+        client = _mock_client()
+        findings = []
+        _check_stored_xss(client, sm, findings)
+        assert len(findings) == 0
+
+    def test_canary_prefix_defined(self):
+        """Verify the canary prefix constant."""
+        assert STORED_XSS_CANARY_PREFIX == "SKYHIGH_STORED_"

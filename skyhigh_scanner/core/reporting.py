@@ -104,6 +104,133 @@ def _build_pdf_evidence_html(evidence: list[dict] | None) -> str:
     </div>"""
 
 
+def _build_dast_sections(summary: dict) -> str:
+    """Build DAST-specific HTML sections (crawl summary, tech, headers, API, attack surface).
+
+    Returns empty string for non-DAST scans.
+    """
+    dast = summary.get("dast_metadata")
+    if not dast:
+        return ""
+
+    crawl = dast.get("crawl", {})
+    sections: list[str] = []
+
+    # ── (a) Crawl Summary Panel ──────────────────────────────────────
+    pages = crawl.get("pages", 0)
+    forms = crawl.get("forms", 0)
+    api_eps = crawl.get("api_endpoints", 0)
+    duration = crawl.get("duration_seconds", 0)
+    redirects = crawl.get("redirect_count", 0)
+    sitemap_urls = crawl.get("sitemap_urls_added", 0)
+    robots_paths = crawl.get("robots_paths_added", 0)
+
+    if pages or forms or api_eps:
+        sections.append(f"""
+<div class="dast-section">
+  <h3 class="dast-title">Crawl Summary</h3>
+  <div class="dast-grid">
+    <div class="dast-stat"><div class="dast-stat-num">{pages}</div><div class="dast-stat-label">Pages Crawled</div></div>
+    <div class="dast-stat"><div class="dast-stat-num">{forms}</div><div class="dast-stat-label">Forms Found</div></div>
+    <div class="dast-stat"><div class="dast-stat-num">{api_eps}</div><div class="dast-stat-label">API Endpoints</div></div>
+    <div class="dast-stat"><div class="dast-stat-num">{duration}s</div><div class="dast-stat-label">Crawl Duration</div></div>
+    <div class="dast-stat"><div class="dast-stat-num">{redirects}</div><div class="dast-stat-label">Redirects</div></div>
+    <div class="dast-stat"><div class="dast-stat-num">{sitemap_urls}</div><div class="dast-stat-label">Sitemap URLs</div></div>
+    <div class="dast-stat"><div class="dast-stat-num">{robots_paths}</div><div class="dast-stat-label">Robots.txt Paths</div></div>
+  </div>
+</div>""")
+
+    # ── (b) Tech Fingerprint Card ────────────────────────────────────
+    tech = crawl.get("tech_fingerprint")
+    if tech:
+        def _tech_row(label: str, value) -> str:
+            if not value:
+                return ""
+            if isinstance(value, list):
+                value = ", ".join(value) if value else "—"
+            return f"<tr><td class='tech-label'>{html.escape(label)}</td><td>{html.escape(str(value))}</td></tr>"
+
+        tech_rows = "".join([
+            _tech_row("Server", tech.get("server")),
+            _tech_row("Framework", tech.get("framework")),
+            _tech_row("CMS", tech.get("cms")),
+            _tech_row("Language", tech.get("language")),
+            _tech_row("JS Frameworks", tech.get("js_frameworks")),
+        ])
+        if tech_rows:
+            sections.append(f"""
+<div class="dast-section">
+  <h3 class="dast-title">Technology Fingerprint</h3>
+  <table class="dast-table"><tbody>{tech_rows}</tbody></table>
+</div>""")
+
+    # ── (c) Security Header Matrix ───────────────────────────────────
+    status_codes = crawl.get("status_codes", {})
+    content_types = crawl.get("content_types", {})
+    if status_codes or content_types:
+        sc_rows = "".join(
+            f"<tr><td>{html.escape(str(code))}</td><td>{count}</td></tr>"
+            for code, count in sorted(status_codes.items(), key=lambda x: str(x[0]))
+        )
+        ct_rows = "".join(
+            f"<tr><td>{html.escape(str(ct))}</td><td>{count}</td></tr>"
+            for ct, count in sorted(content_types.items(), key=lambda x: str(x[0]))
+        )
+        sections.append(f"""
+<div class="dast-section">
+  <h3 class="dast-title">Response Analysis</h3>
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+    {"<div><h4 style='margin-bottom:8px; color:#82aaff;'>Status Codes</h4><table class='dast-table'><tr><th>Code</th><th>Count</th></tr>" + sc_rows + "</table></div>" if sc_rows else ""}
+    {"<div><h4 style='margin-bottom:8px; color:#82aaff;'>Content Types</h4><table class='dast-table'><tr><th>Type</th><th>Count</th></tr>" + ct_rows + "</table></div>" if ct_rows else ""}
+  </div>
+</div>""")
+
+    # ── (d) API Endpoint Inventory ───────────────────────────────────
+    api_list = crawl.get("api_endpoints_list", [])
+    if api_list:
+        api_rows = "".join(
+            f"<tr><td><span class='ev-method'>{html.escape(ep.get('method', 'GET'))}</span></td>"
+            f"<td style='word-break:break-all;'>{html.escape(ep.get('url', ''))}</td>"
+            f"<td>{html.escape(ep.get('source', ''))}</td></tr>"
+            for ep in api_list[:50]
+        )
+        sections.append(f"""
+<div class="dast-section">
+  <h3 class="dast-title">API Endpoint Inventory ({len(api_list)} endpoints)</h3>
+  <table class="dast-table">
+    <tr><th>Method</th><th>URL</th><th>Source</th></tr>
+    {api_rows}
+  </table>
+</div>""")
+
+    # ── (e) Attack Surface Summary ───────────────────────────────────
+    requests_sent = dast.get("requests_sent", 0)
+    auth_mode = dast.get("auth_mode", "none")
+    passive_only = dast.get("passive_only", False)
+    rate_limit = dast.get("rate_limit_rps", 0)
+    perf = dast.get("performance", {})
+    avg_rt = perf.get("avg_response_time_ms", 0)
+    p95_rt = perf.get("p95_response_time_ms", 0)
+
+    sections.append(f"""
+<div class="dast-section">
+  <h3 class="dast-title">Attack Surface Summary</h3>
+  <div class="dast-grid">
+    <div class="dast-stat"><div class="dast-stat-num">{requests_sent}</div><div class="dast-stat-label">Requests Sent</div></div>
+    <div class="dast-stat"><div class="dast-stat-num">{pages}</div><div class="dast-stat-label">Pages Tested</div></div>
+    <div class="dast-stat"><div class="dast-stat-num">{forms}</div><div class="dast-stat-label">Forms Tested</div></div>
+    <div class="dast-stat"><div class="dast-stat-num">{api_eps}</div><div class="dast-stat-label">API Endpoints</div></div>
+    <div class="dast-stat"><div class="dast-stat-num">{html.escape(auth_mode)}</div><div class="dast-stat-label">Auth Mode</div></div>
+    <div class="dast-stat"><div class="dast-stat-num">{'Yes' if passive_only else 'No'}</div><div class="dast-stat-label">Passive Only</div></div>
+    <div class="dast-stat"><div class="dast-stat-num">{rate_limit}/s</div><div class="dast-stat-label">Rate Limit</div></div>
+    <div class="dast-stat"><div class="dast-stat-num">{avg_rt:.0f}ms</div><div class="dast-stat-label">Avg Response</div></div>
+    <div class="dast-stat"><div class="dast-stat-num">{p95_rt:.0f}ms</div><div class="dast-stat-label">P95 Response</div></div>
+  </div>
+</div>""")
+
+    return "\n".join(sections)
+
+
 def _build_charts_data(findings: list[Finding], summary: dict) -> dict:
     """Compute data needed for Chart.js visualisations.
 
@@ -504,6 +631,28 @@ def generate_html_report(
     .charts-grid {{ grid-template-columns:1fr; }}
   }}
 
+  .dast-section {{ padding:20px 40px; }}
+  .dast-title {{ margin-bottom:12px; font-size:1.2em; color:#E74C3C; }}
+  .dast-grid {{
+    display:grid; grid-template-columns:repeat(auto-fit, minmax(120px,1fr));
+    gap:10px;
+  }}
+  .dast-stat {{
+    background:#16213e; border-radius:8px; padding:14px; text-align:center;
+    border-top:3px solid #E74C3C;
+  }}
+  .dast-stat-num {{ font-size:1.4em; font-weight:bold; color:#e0e0e0; }}
+  .dast-stat-label {{ font-size:0.8em; opacity:0.7; margin-top:4px; }}
+  .dast-table {{
+    width:100%; border-collapse:collapse; background:#16213e;
+    border-radius:10px; overflow:hidden;
+  }}
+  .dast-table th {{
+    background:#0d1b3e; padding:10px; text-align:left; color:#82aaff;
+  }}
+  .dast-table td {{ padding:8px 10px; border-top:1px solid #222; }}
+  .dast-table .tech-label {{ color:#82aaff; font-weight:600; width:140px; }}
+
   .footer {{ text-align:center; padding:20px; opacity:0.5; font-size:0.85em; }}
 
   @media print {{
@@ -537,6 +686,8 @@ def generate_html_report(
 </div>
 
 {_build_charts_section(sorted_findings, summary)}
+
+{_build_dast_sections(summary)}
 
 <div class="filters">
   <select id="filterSeverity" onchange="filterFindings()">
@@ -825,6 +976,23 @@ def _build_pdf_html(
   .status-ok {{ color: #2e7d32; }}
   .status-fail {{ color: #c62828; }}
 
+  .dast-section {{ margin: 12px 0; }}
+  .dast-title {{ font-size: 11pt; margin-bottom: 6px; color: #c62828; }}
+  .dast-grid {{
+    display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px;
+  }}
+  .dast-stat {{
+    background: #f4f6f9; border-radius: 4px; padding: 6px 10px;
+    text-align: center; flex: 1; min-width: 70px;
+    border: 1px solid #ddd; border-top: 2px solid #c62828;
+  }}
+  .dast-stat-num {{ font-size: 12pt; font-weight: bold; }}
+  .dast-stat-label {{ font-size: 6.5pt; text-transform: uppercase; color: #666; margin-top: 1px; }}
+  .dast-table {{ width: 100%; border-collapse: collapse; font-size: 8.5pt; margin-bottom: 8px; }}
+  .dast-table th {{ background: #e8eaf6; padding: 4px 8px; text-align: left; border: 1px solid #ccc; }}
+  .dast-table td {{ padding: 3px 8px; border: 1px solid #ddd; }}
+  .dast-table .tech-label {{ color: #1565c0; font-weight: 600; width: 100px; }}
+
   .footer {{ text-align: center; margin-top: 20px; font-size: 8pt; color: #999; }}
 </style>
 </head>
@@ -852,6 +1020,8 @@ def _build_pdf_html(
 {('<div class="targets-table"><h3>Targets</h3>'
   '<table><tr><th>Target</th><th>Status</th></tr>'
   + targets_rows + '</table></div>') if targets_rows else ''}
+
+{_build_dast_sections(summary)}
 
 <div class="findings">
   {"".join(findings_html)}

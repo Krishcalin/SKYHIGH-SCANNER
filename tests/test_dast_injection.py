@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from skyhigh_scanner.dast.checks.injection import run_checks
+from skyhigh_scanner.dast.checks.injection import (
+    _check_http_param_pollution,
+    _check_ldap_injection,
+    run_checks,
+)
 from skyhigh_scanner.dast.crawler import APIEndpoint, FormField, FormInfo, SiteMap
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -214,3 +218,112 @@ class TestRunChecks:
         client = _mock_client()
         findings = run_checks(client, "https://example.com", _empty_sitemap())
         assert isinstance(findings, list)
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# LDAP injection (DAST-INJ-011)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+class TestLDAPInjection:
+    """DAST-INJ-011: LDAP injection."""
+
+    def test_ldap_error_detected(self):
+        """Detect LDAP error patterns in response."""
+        client = _mock_client(
+            get_text="javax.naming.NamingException: Invalid LDAP filter",
+        )
+        sm = _url_sitemap("https://example.com/users?name=test")
+        findings = []
+        _check_ldap_injection(client, sm, findings)
+        inj_011 = [f for f in findings if f.rule_id == "DAST-INJ-011"]
+        assert len(inj_011) >= 1
+        assert inj_011[0].severity == "HIGH"
+        assert inj_011[0].cwe == "CWE-90"
+
+    def test_no_ldap_error(self):
+        """No finding for normal response."""
+        client = _mock_client(get_text="<html>Normal page</html>")
+        sm = _url_sitemap("https://example.com/users?name=test")
+        findings = []
+        _check_ldap_injection(client, sm, findings)
+        inj_011 = [f for f in findings if f.rule_id == "DAST-INJ-011"]
+        assert len(inj_011) == 0
+
+    def test_wildcard_length_diff(self):
+        """Detect wildcard response length anomaly."""
+        sm = _url_sitemap("https://example.com/users?name=john")
+        client = MagicMock()
+
+        call_idx = [0]
+
+        def fake_get(*args, **kwargs):
+            call_idx[0] += 1
+            resp = MagicMock()
+            resp.status_code = 200
+            resp.headers = {}
+            if call_idx[0] == 1:
+                resp.text = "A" * 100  # baseline
+            else:
+                resp.text = "A" * 500  # wildcard returns more data
+            return resp
+
+        client.get.side_effect = fake_get
+        findings = []
+        _check_ldap_injection(client, sm, findings)
+        inj_011 = [f for f in findings if f.rule_id == "DAST-INJ-011"]
+        assert len(inj_011) >= 1
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# HTTP Parameter Pollution (DAST-INJ-012)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+class TestHTTPParamPollution:
+    """DAST-INJ-012: HTTP Parameter Pollution."""
+
+    def test_hpp_sql_bypass(self):
+        """Detect when duplicate param triggers SQL error."""
+        sm = _url_sitemap("https://example.com/users?id=1")
+        client = MagicMock()
+
+        call_idx = [0]
+
+        def fake_get(*args, **kwargs):
+            call_idx[0] += 1
+            resp = MagicMock()
+            resp.status_code = 200
+            resp.headers = {}
+            url = args[0] if args else kwargs.get("url", "")
+            # Baseline and single-param: clean response
+            # HPP (duplicate param): SQL error
+            if "&id=" in url:
+                resp.text = "SQL syntax error near"
+            else:
+                resp.text = "<html>Normal page</html>"
+            return resp
+
+        client.get.side_effect = fake_get
+        findings = []
+        _check_http_param_pollution(client, sm, findings)
+        inj_012 = [f for f in findings if f.rule_id == "DAST-INJ-012"]
+        assert len(inj_012) >= 1
+        assert inj_012[0].severity == "MEDIUM"
+        assert inj_012[0].cwe == "CWE-235"
+
+    def test_hpp_no_finding(self):
+        """No finding when HPP doesn't trigger errors."""
+        client = _mock_client(get_text="<html>Normal page</html>")
+        sm = _url_sitemap("https://example.com/users?id=1")
+        findings = []
+        _check_http_param_pollution(client, sm, findings)
+        inj_012 = [f for f in findings if f.rule_id == "DAST-INJ-012"]
+        assert len(inj_012) == 0
+
+    def test_hpp_no_params(self):
+        """No test when URL has no params."""
+        client = _mock_client()
+        sm = _url_sitemap("https://example.com/page")
+        findings = []
+        _check_http_param_pollution(client, sm, findings)
+        assert len(findings) == 0
+        client.get.assert_not_called()

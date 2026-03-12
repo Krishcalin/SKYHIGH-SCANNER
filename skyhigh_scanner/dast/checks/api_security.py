@@ -11,13 +11,15 @@ Checks for API-specific security issues:
   - Swagger/OpenAPI exposed without auth
   - API versioning and deprecation
 
-Rule IDs: DAST-API-001 through DAST-API-008
+Rule IDs: DAST-API-001 through DAST-API-011
 """
 
 from __future__ import annotations
 
+import json
 import logging
 import re
+import time
 from typing import TYPE_CHECKING
 
 from ...core.finding import Finding
@@ -82,6 +84,24 @@ API_ERROR_PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(r'"debug":\s*true'), "Debug mode enabled in API"),
     (re.compile(r'"(?:sql|query)":\s*"(?:SELECT|INSERT|UPDATE|DELETE)', re.I), "SQL query in response"),
 ]
+
+# GraphQL DoS payloads
+GRAPHQL_PATHS = ["graphql", "api/graphql", "graphql/v1"]
+
+GRAPHQL_BATCH_QUERY = json.dumps(
+    [{"query": "{ __typename }"}] * 100,
+)
+
+GRAPHQL_ALIAS_QUERY = json.dumps({
+    "query": "{ " + " ".join(f"a{i}: __typename" for i in range(100)) + " }",
+})
+
+GRAPHQL_DEEP_QUERY = json.dumps({
+    "query": (
+        "{ __schema { types { fields { type { fields { type { "
+        "fields { type { name } } } } } } } } }"
+    ),
+})
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -506,6 +526,212 @@ def _check_api_mass_assignment(
                 continue
 
 
+def _check_graphql_batch_dos(
+    client: DastHTTPClient,
+    target_url: str,
+    findings: list[Finding],
+) -> None:
+    """DAST-API-009: GraphQL query batching DoS."""
+    base = target_url.rstrip("/")
+
+    for path in GRAPHQL_PATHS:
+        url = f"{base}/{path}"
+        try:
+            resp = client.post(
+                url,
+                data=GRAPHQL_BATCH_QUERY,
+                headers={"Content-Type": "application/json"},
+                capture_evidence=True,
+            )
+        except Exception as exc:
+            logger.debug(
+                "Check %s failed for %s: %s", "DAST-API-009", url, exc,
+            )
+            continue
+
+        if resp.status_code != 200:
+            continue
+
+        try:
+            data = resp.json()
+        except (ValueError, KeyError):
+            continue
+
+        if isinstance(data, list) and len(data) >= 50:
+            findings.append(_finding(
+                rule_id="DAST-API-009",
+                name="GraphQL query batching not limited",
+                severity="MEDIUM",
+                file_path=url,
+                line_content=f"Batch of 100 queries accepted — {len(data)} results",
+                description=(
+                    f"GraphQL endpoint {url} accepts batched queries without "
+                    f"limiting the batch size. Sending 100 queries in a single "
+                    f"request returned {len(data)} results. An attacker can "
+                    "abuse this to amplify resource consumption or bypass "
+                    "rate limiting."
+                ),
+                recommendation=(
+                    "Limit the maximum number of queries per batch request "
+                    "(e.g., 10). Implement query cost analysis to prevent "
+                    "resource exhaustion."
+                ),
+                cwe="CWE-400",
+                evidence=[{
+                    "method": "POST",
+                    "url": url,
+                    "status": resp.status_code,
+                    "payload": "Array of 100 { __typename } queries",
+                    "proof": resp.text[:500],
+                }],
+            ))
+            return
+
+
+def _check_graphql_alias_dos(
+    client: DastHTTPClient,
+    target_url: str,
+    findings: list[Finding],
+) -> None:
+    """DAST-API-010: GraphQL field aliasing DoS."""
+    base = target_url.rstrip("/")
+
+    for path in GRAPHQL_PATHS:
+        url = f"{base}/{path}"
+        try:
+            resp = client.post(
+                url,
+                data=GRAPHQL_ALIAS_QUERY,
+                headers={"Content-Type": "application/json"},
+                capture_evidence=True,
+            )
+        except Exception as exc:
+            logger.debug(
+                "Check %s failed for %s: %s", "DAST-API-010", url, exc,
+            )
+            continue
+
+        if resp.status_code != 200:
+            continue
+
+        try:
+            data = resp.json()
+        except (ValueError, KeyError):
+            continue
+
+        if isinstance(data, dict):
+            result_data = data.get("data", {})
+            if isinstance(result_data, dict) and len(result_data) >= 50:
+                findings.append(_finding(
+                    rule_id="DAST-API-010",
+                    name="GraphQL field aliasing not limited",
+                    severity="MEDIUM",
+                    file_path=url,
+                    line_content=(
+                        f"100 aliases accepted — "
+                        f"{len(result_data)} fields returned"
+                    ),
+                    description=(
+                        f"GraphQL endpoint {url} allows unlimited field "
+                        f"aliasing. Sending 100 aliases returned "
+                        f"{len(result_data)} fields. An attacker can use "
+                        "aliasing to amplify responses and exhaust server "
+                        "resources."
+                    ),
+                    recommendation=(
+                        "Implement query complexity limits that account for "
+                        "aliases. Limit the maximum number of aliases per "
+                        "query. Use query cost analysis."
+                    ),
+                    cwe="CWE-400",
+                    evidence=[{
+                        "method": "POST",
+                        "url": url,
+                        "status": resp.status_code,
+                        "payload": "100 aliased __typename fields",
+                        "proof": resp.text[:500],
+                    }],
+                ))
+                return
+
+
+def _check_graphql_deep_nesting_dos(
+    client: DastHTTPClient,
+    target_url: str,
+    findings: list[Finding],
+) -> None:
+    """DAST-API-011: GraphQL deep nesting DoS."""
+    base = target_url.rstrip("/")
+
+    for path in GRAPHQL_PATHS:
+        url = f"{base}/{path}"
+
+        # Baseline timing
+        try:
+            t0 = time.monotonic()
+            client.post(
+                url,
+                data=GRAPHQL_INTROSPECTION_QUERY,
+                headers={"Content-Type": "application/json"},
+            )
+            baseline = time.monotonic() - t0
+        except Exception:
+            continue
+
+        # Deep nesting query
+        try:
+            t0 = time.monotonic()
+            resp = client.post(
+                url,
+                data=GRAPHQL_DEEP_QUERY,
+                headers={"Content-Type": "application/json"},
+                capture_evidence=True,
+            )
+            elapsed = time.monotonic() - t0
+        except Exception as exc:
+            logger.debug(
+                "Check %s failed for %s: %s", "DAST-API-011", url, exc,
+            )
+            continue
+
+        slow = (elapsed - baseline) > 3.0
+        server_error = resp.status_code >= 500
+
+        if slow or server_error:
+            trigger = (
+                f"Response {elapsed:.2f}s vs baseline {baseline:.2f}s"
+                if slow
+                else f"Server error {resp.status_code}"
+            )
+            findings.append(_finding(
+                rule_id="DAST-API-011",
+                name="GraphQL deep nesting not limited",
+                severity="MEDIUM",
+                file_path=url,
+                line_content=f"Deep nested query — {trigger}",
+                description=(
+                    f"GraphQL endpoint {url} does not limit query depth. "
+                    f"A deeply nested query caused: {trigger}. "
+                    "Attackers can craft deeply nested queries to cause "
+                    "stack exhaustion or excessive CPU usage on the server."
+                ),
+                recommendation=(
+                    "Implement maximum query depth limits (typically 7-10 "
+                    "levels). Use a query complexity analyzer to reject "
+                    "expensive queries before execution."
+                ),
+                cwe="CWE-400",
+                evidence=[{
+                    "method": "POST",
+                    "url": url,
+                    "status": resp.status_code,
+                    "payload": "Deeply nested schema query (8 levels)",
+                    "proof": resp.text[:500],
+                }],
+            ))
+            return
+
+
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Module entry point
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -532,5 +758,8 @@ def run_checks(
     _check_api_authentication(client, sitemap, findings)
     _check_api_cors(client, sitemap, findings)
     _check_api_mass_assignment(client, sitemap, findings)
+    _check_graphql_batch_dos(client, target_url, findings)
+    _check_graphql_alias_dos(client, target_url, findings)
+    _check_graphql_deep_nesting_dos(client, target_url, findings)
 
     return findings

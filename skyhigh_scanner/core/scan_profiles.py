@@ -65,6 +65,9 @@ CATEGORIES = frozenset({
     "file_inclusion",   # Path traversal, LFI/RFI, file upload
     "info_disclosure",  # Error pages, debug endpoints, backup files
     "config_misconfig", # CORS, smuggling, cache poisoning, open redirect
+    "ssrf",             # Server-Side Request Forgery
+    "xxe",              # XML External Entity injection
+    "jwt",              # JWT token analysis
 })
 
 

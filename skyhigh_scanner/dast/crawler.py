@@ -141,6 +141,8 @@ class SiteMap:
     tech_fingerprint: TechFingerprint | None = None
     robots_disallowed: list[str] = field(default_factory=list)
     crawl_stats: CrawlStats = field(default_factory=CrawlStats)
+    # Phase 8 — WAF detection
+    waf_info: object | None = None
 
     @property
     def total_discovered(self) -> int:
