@@ -258,6 +258,16 @@ class DastConfig:
         if scope_file:
             scope = _load_scope_file(scope_file)
 
+        # Build auth_form_data from login user/password if provided
+        auth_form_data = None
+        login_user = getattr(args, "dast_login_user", None)
+        login_password = getattr(args, "dast_login_password", None)
+        if login_user and login_password:
+            auth_form_data = {
+                "username": login_user,
+                "password": login_password,
+            }
+
         return cls(
             scope=scope,
             rate_limit_rps=getattr(args, "dast_rate_limit", 10.0),
@@ -266,6 +276,7 @@ class DastConfig:
             auth_mode=getattr(args, "dast_auth_mode", "none"),
             auth_token=getattr(args, "dast_auth_token", None),
             auth_form_url=getattr(args, "dast_login_url", None),
+            auth_form_data=auth_form_data,
             crawl_enabled=not getattr(args, "dast_no_crawl", False),
             passive_only=getattr(args, "dast_passive_only", False),
             accept_risk=getattr(args, "dast_accept_risk", False),

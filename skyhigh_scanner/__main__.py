@@ -192,6 +192,10 @@ def _add_dast_args(parser: argparse.ArgumentParser) -> None:
                       help="Bearer token, session cookie, or user:pass for basic auth")
     dast.add_argument("--dast-login-url",
                       help="Login form URL for form-based auth")
+    dast.add_argument("--dast-login-user",
+                      help="Username for form-based login")
+    dast.add_argument("--dast-login-password",
+                      help="Password for form-based login")
     dast.add_argument("--dast-passive-only", action="store_true",
                       help="Only passive checks (no injection payloads)")
     dast.add_argument("--dast-no-crawl", action="store_true",

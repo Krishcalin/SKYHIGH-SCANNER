@@ -24,6 +24,7 @@ import sys
 from typing import TYPE_CHECKING
 
 from ..core.scanner_base import ScannerBase
+from ..dast.auth_manager import AuthManager
 from ..dast.config import DastConfig, ScopePolicy
 from ..dast.crawler import SiteMap, WebCrawler
 from ..dast.http_client import DastHTTPClient
@@ -131,6 +132,26 @@ class DastScanner(ScannerBase):
                 # No crawl — just test the seed URL
                 sitemap.urls.add(url)
                 self._vprint("Crawling disabled — testing seed URL only")
+
+            # Phase 1.5: Authentication
+            auth_mgr = AuthManager(
+                client=client,
+                config=self.dast_config,
+                credentials=self.credentials,
+            )
+            if self.dast_config.auth_mode != "none":
+                self._info("Phase 1.5: Authenticating...")
+                auth_result = auth_mgr.authenticate(url, sitemap)
+                if auth_result:
+                    self._info(f"Auth: {auth_result.message}")
+                else:
+                    self._warn(f"Auth: {auth_result.message}")
+                if self.verbose:
+                    info = auth_mgr.get_session_info()
+                    self._vprint(
+                        f"  Mode={info['auth_mode']} | "
+                        f"Cookies={info['session_cookies']}"
+                    )
 
             # Phase 2: Dispatch check modules
             self._info("Phase 2: Running security checks...")
