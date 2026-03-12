@@ -13,7 +13,7 @@
   <a href="#supported-platforms"><img src="https://img.shields.io/badge/platforms-23-orange.svg" alt="23 Platforms" /></a>
   <a href="#cve-database"><img src="https://img.shields.io/badge/CVEs-32%2C000+-red.svg" alt="32,000+ CVEs" /></a>
   <a href="#features"><img src="https://img.shields.io/badge/rules-~800-purple.svg" alt="~800 Rules" /></a>
-  <a href="#testing"><img src="https://img.shields.io/badge/tests-616_passing-brightgreen.svg" alt="616 Tests" /></a>
+  <a href="#testing"><img src="https://img.shields.io/badge/tests-913_passing-brightgreen.svg" alt="913 Tests" /></a>
 </p>
 
 ---
@@ -126,9 +126,16 @@ Unlike static analysis tools, SkyHigh Scanner actively queries running systems �
 | Feature | Details |
 |---------|---------|
 | **Crawling** | BFS web crawler with form, link, API endpoint, and JavaScript extraction |
+| **URL Discovery** | robots.txt, sitemap.xml, and common path probing |
 | **Scope Enforcement** | Mandatory host/path allowlist prevents out-of-scope requests |
-| **Rate Limiting** | Token-bucket algorithm (default 10 req/s) with configurable burst |
+| **Rate Limiting** | Adaptive token-bucket algorithm — halves on 429/5xx, auto-recovers |
 | **Request Cap** | Hard limit on total requests (default 10,000) |
+| **Circuit Breaker** | Trips after consecutive failures, auto-resets after timeout |
+| **Retry Logic** | Exponential backoff on transient failures (5xx, timeouts) |
+| **Connection Pooling** | HTTPAdapter with 20 pooled connections for performance |
+| **Response Time Tracking** | Average and P95 response time metrics in scan summary |
+| **Concurrent Checks** | ThreadPoolExecutor (4 workers) for parallel check dispatch |
+| **Evidence Capture** | Proof-of-concept request/response pairs attached to findings |
 | **Auth Modes** | None, Bearer token, Cookie, Basic auth, Form login |
 | **Passive Mode** | `--dast-passive-only` skips injection/XSS/file-inclusion checks |
 | **Safety Controls** | Pre-scan warning banner, `--dast-accept-risk` to suppress |
@@ -379,6 +386,12 @@ python -m skyhigh_scanner dast --target https://app.example.com --dast-accept-ri
 | `--dast-no-crawl` | false | Skip crawling, test seed URL only |
 | `--dast-accept-risk` | false | Suppress pre-scan warning banner |
 | `--dast-follow-subdomains` | false | Include subdomains in scope |
+| `--dast-request-timeout N` | 15 | Per-request timeout in seconds |
+| `--dast-verify-ssl` | false | Verify SSL certificates |
+| `--dast-max-pages N` | 500 | Maximum pages to crawl |
+| `--dast-user-agent STR` | SkyHigh-DAST/1.0 | Custom User-Agent header |
+| `--dast-proxy URL` | — | HTTP proxy (e.g. `http://127.0.0.1:8080`) |
+| `--dast-retries N` | 3 | Max retries per request on failure |
 
 ### CVE Sync Options
 
@@ -605,7 +618,7 @@ SKYHIGH-SCANNER/
 ├── .github/workflows/
 │   └── ci.yml                    # GitHub Actions CI (test, lint, seed validation)
 │
-├── tests/                        # Test suite (616 tests)
+├── tests/                        # Test suite (913 tests)
 │   ├── conftest.py               # Shared fixtures
 │   ├── test_version_utils.py     # Version parsing & range matching (20 tests)
 │   ├── test_ip_utils.py          # IP range expansion & DNS (16 tests)
@@ -625,10 +638,13 @@ SKYHIGH-SCANNER/
 │   ├── test_auto_scanner.py      # Auto scanner & parallel dispatch (67 tests)
 │   ├── test_config.py            # Config file loading (30 tests)
 │   ├── test_baseline.py          # Baseline diff scanning (20 tests)
-│   ├── test_dast_config.py       # DAST config, scope, rate limiter (29 tests)
+│   ├── test_dast_config.py       # DAST config, scope, rate limiter, circuit breaker (41 tests)
 │   ├── test_dast_http_client.py  # DAST HTTP client, auth, evidence (22 tests)
-│   ├── test_dast_crawler.py      # Web crawler, HTML parser, JS extraction (26 tests)
-│   └── test_dast_scanner.py      # DAST scanner orchestrator, CLI (18 tests)
+│   ├── test_dast_crawler.py      # Web crawler, HTML parser, JS extraction (52 tests)
+│   ├── test_dast_discovery.py    # URL discovery, robots.txt, sitemap.xml (26 tests)
+│   ├── test_dast_evidence.py     # Evidence capture in check modules (43 tests)
+│   ├── test_dast_perf_safety.py  # Circuit breaker, retry, adaptive rate limiter (39 tests)
+│   └── test_dast_scanner.py      # DAST scanner orchestrator, concurrent dispatch (22 tests)
 │
 └── skyhigh_scanner/              # Main package
     ├── __init__.py               # VERSION = "1.0.0"
@@ -663,9 +679,10 @@ SKYHIGH-SCANNER/
     │
     ├── dast/                     # DAST engine
     │   ├── __init__.py           # Package exports
-    │   ├── config.py             # ScopePolicy, RateLimiter, RequestCounter, DastConfig
-    │   ├── http_client.py        # DastHTTPClient (scope + rate limiting + evidence)
+    │   ├── config.py             # ScopePolicy, RateLimiter, RequestCounter, CircuitBreaker, DastConfig
+    │   ├── http_client.py        # DastHTTPClient (scope + rate limiting + retries + evidence)
     │   ├── crawler.py            # WebCrawler, SiteMap, HTML parser, JS extraction
+    │   ├── discovery.py          # URL discovery (robots.txt, sitemap.xml, common paths)
     │   └── checks/               # Check modules (injection, xss, auth, etc.)
     │       └── __init__.py       # Check module interface
     │
@@ -744,13 +761,16 @@ pytest tests/test_seed_validation.py -v
 | Auto scanner & parallel | 67 | N/A (cross-module) |
 | Config file loading | 30 | N/A (cross-module) |
 | Baseline diff scanning | 20 | N/A (cross-module) |
-| DAST config & scope | 29 | N/A (cross-module) |
+| DAST config & scope | 41 | N/A (cross-module) |
 | DAST HTTP client | 22 | N/A (cross-module) |
-| DAST crawler | 26 | N/A (cross-module) |
-| DAST scanner | 18 | N/A (cross-module) |
+| DAST crawler | 52 | N/A (cross-module) |
+| DAST discovery | 26 | N/A (cross-module) |
+| DAST evidence | 43 | N/A (cross-module) |
+| DAST perf & safety | 39 | N/A (cross-module) |
+| DAST scanner | 22 | N/A (cross-module) |
 | Seed file validation | 12 | N/A |
 | CLI argument parsing | 25 | N/A |
-| **Total** | **616** | |
+| **Total** | **913** | |
 
 ### CI Pipeline
 
@@ -782,7 +802,7 @@ Contributions are welcome! Here's how to get started:
 2. **Create** a feature branch: `git checkout -b feature/my-feature`
 3. **Install** dev dependencies: `pip install -r requirements-dev.txt`
 4. **Make** your changes
-5. **Run tests**: `pytest` -- all 616 tests must pass
+5. **Run tests**: `pytest` -- all 913 tests must pass
 6. **Lint**: `ruff check skyhigh_scanner/ tests/`
 7. **Commit**: `git commit -m "Add my feature"`
 8. **Push**: `git push origin feature/my-feature`
