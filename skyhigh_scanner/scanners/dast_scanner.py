@@ -20,7 +20,9 @@ Rule ID format: DAST-{CATEGORY}-{NNN}
 
 from __future__ import annotations
 
+import logging
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import TYPE_CHECKING
 
 from ..core.scanner_base import ScannerBase
@@ -72,6 +74,12 @@ class DastScanner(ScannerBase):
         self.credentials = credentials
         self.timeout = timeout
 
+        # DAST scan metadata (populated during scan)
+        self._request_count: int = 0
+        self._crawl_stats: dict[str, int] = {}
+        self._auth_mode: str = "none"
+        self._perf_metrics: dict[str, float] = {}
+
         # Build DAST config — auto-generate scope from target if not provided
         if dast_config:
             self.dast_config = dast_config
@@ -120,14 +128,26 @@ class DastScanner(ScannerBase):
                 self._info("Phase 1: Crawling target...")
                 crawler = WebCrawler(
                     client=client,
+                    max_pages=self.dast_config.max_pages,
                     verbose=self.verbose,
                 )
                 sitemap = crawler.crawl(url)
+                cs = sitemap.crawl_stats
                 self._info(
                     f"Crawl complete: {len(sitemap.urls)} pages, "
                     f"{len(sitemap.forms)} forms, "
                     f"{len(sitemap.api_endpoints)} API endpoints"
                 )
+                if cs.sitemap_urls_added:
+                    self._info(f"  Sitemap URLs: {cs.sitemap_urls_added}")
+                if cs.robots_paths_added:
+                    self._info(f"  Robots.txt paths: {cs.robots_paths_added}")
+                if cs.redirect_count:
+                    self._info(f"  Redirects tracked: {cs.redirect_count}")
+                if sitemap.tech_fingerprint:
+                    self._info(
+                        f"  Tech: {sitemap.tech_fingerprint.summary_line()}"
+                    )
             else:
                 # No crawl — just test the seed URL
                 sitemap.urls.add(url)
@@ -158,7 +178,38 @@ class DastScanner(ScannerBase):
             self._dispatch_checks(client, url, sitemap)
 
             self.targets_scanned.append(url)
+            self._request_count = client.request_count
+            cs = sitemap.crawl_stats
+            self._crawl_stats = {
+                "pages": len(sitemap.urls),
+                "forms": len(sitemap.forms),
+                "api_endpoints": len(sitemap.api_endpoints),
+                "sitemap_urls_added": cs.sitemap_urls_added,
+                "robots_paths_added": cs.robots_paths_added,
+                "redirect_count": cs.redirect_count,
+                "status_codes": cs.status_codes,
+                "content_types": cs.content_types,
+                "duration_seconds": round(cs.duration_seconds, 2),
+            }
+            if sitemap.tech_fingerprint:
+                self._crawl_stats["tech_fingerprint"] = {
+                    "server": sitemap.tech_fingerprint.server,
+                    "framework": sitemap.tech_fingerprint.framework,
+                    "cms": sitemap.tech_fingerprint.cms,
+                    "language": sitemap.tech_fingerprint.language,
+                    "js_frameworks": sitemap.tech_fingerprint.js_frameworks,
+                }
+            self._auth_mode = self.dast_config.auth_mode
+            self._perf_metrics = {
+                "avg_response_time_ms": round(client.avg_response_time_ms, 1),
+                "p95_response_time_ms": round(client.p95_response_time_ms, 1),
+            }
             self._info(f"Requests sent: {client.request_count}")
+            if self._perf_metrics["avg_response_time_ms"] > 0:
+                self._info(
+                    f"Response times: avg={self._perf_metrics['avg_response_time_ms']:.0f}ms "
+                    f"p95={self._perf_metrics['p95_response_time_ms']:.0f}ms"
+                )
 
         except Exception as e:
             self._error(f"DAST scan failed: {e}")
@@ -178,32 +229,48 @@ class DastScanner(ScannerBase):
         target_url: str,
         sitemap: SiteMap,
     ) -> None:
-        """Dispatch to DAST check modules based on the active scan profile."""
+        """Dispatch to DAST check modules concurrently."""
+        _logger = logging.getLogger(__name__)
+
+        # Build list of enabled checks
+        enabled: list[tuple[str, str]] = []
         for category, module_name in self.CHECK_DISPATCH.items():
             if not self._check_enabled(category):
                 self._vprint(f"Skipping {category} (disabled by profile)")
                 continue
-
-            # Skip active injection checks in passive-only mode
             if self.dast_config.passive_only and category in (
                 "injection", "xss", "file_inclusion", "access_control",
             ):
                 self._vprint(f"Skipping {category} (passive-only mode)")
                 continue
+            enabled.append((category, module_name))
 
-            self._vprint(f"Running {category} checks...")
+        if not enabled:
+            return
+
+        def _run_one(cat_mod: tuple[str, str]) -> tuple[str, list]:
+            cat, mod = cat_mod
             try:
-                findings = self._run_check_module(
-                    module_name, client, target_url, sitemap,
-                )
-                for f in findings:
-                    self._add_finding(f)
-                if findings:
-                    self._vprint(f"  {category}: {len(findings)} findings")
+                return cat, self._run_check_module(mod, client, target_url, sitemap)
             except ImportError:
-                self._vprint(f"  {category} check module not yet implemented")
-            except Exception as e:
-                self._warn(f"  {category} checks failed: {e}")
+                _logger.debug("Check module %s not yet implemented", mod)
+                return cat, []
+            except Exception as exc:
+                _logger.debug("Check module %s failed: %s", mod, exc)
+                return cat, []
+
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            futures = {pool.submit(_run_one, pair): pair[0] for pair in enabled}
+            for future in as_completed(futures):
+                category = futures[future]
+                try:
+                    cat, findings = future.result()
+                    for f in findings:
+                        self._add_finding(f)
+                    if findings:
+                        self._vprint(f"  {cat}: {len(findings)} findings")
+                except Exception as exc:
+                    self._warn(f"  {category} checks failed: {exc}")
 
     def _run_check_module(
         self,
@@ -223,6 +290,21 @@ class DastScanner(ScannerBase):
             credentials=self.credentials,
             verbose=self.verbose,
         )
+
+    # ── Summary override ─────────────────────────────────────────────
+
+    def summary(self) -> dict:
+        """Return scan summary with DAST-specific metadata."""
+        s = super().summary()
+        s["dast_metadata"] = {
+            "requests_sent": self._request_count,
+            "crawl": self._crawl_stats,
+            "auth_mode": self._auth_mode,
+            "passive_only": self.dast_config.passive_only,
+            "rate_limit_rps": self.dast_config.rate_limit_rps,
+            "performance": self._perf_metrics,
+        }
+        return s
 
     # ── Warning banner ────────────────────────────────────────────────
 

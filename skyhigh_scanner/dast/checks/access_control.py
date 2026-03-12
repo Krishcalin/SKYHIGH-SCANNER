@@ -14,6 +14,7 @@ Rule IDs: DAST-AC-001 through DAST-AC-006
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import TYPE_CHECKING
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
@@ -24,6 +25,8 @@ if TYPE_CHECKING:
     from ...core.credential_manager import CredentialManager
     from ..crawler import SiteMap
     from ..http_client import DastHTTPClient
+
+logger = logging.getLogger(__name__)
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -85,6 +88,7 @@ def _finding(
     description: str,
     recommendation: str,
     cwe: str | None = None,
+    evidence: list[dict] | None = None,
 ) -> Finding:
     return Finding(
         rule_id=rule_id,
@@ -98,6 +102,7 @@ def _finding(
         recommendation=recommendation,
         cwe=cwe,
         target_type="dast",
+        evidence=evidence,
     )
 
 
@@ -116,7 +121,8 @@ def _check_forced_browsing(
     for path, desc in ADMIN_PATHS:
         try:
             status, body = client.probe_path(target_url, path)
-        except Exception:
+        except Exception as exc:
+            logger.debug("Check %s failed for %s: %s", "DAST-AC-001", path, exc)
             continue
 
         if status == 200 and len(body) > 100:
@@ -162,7 +168,8 @@ def _check_verb_tampering(
             resp = client.get(url, capture_evidence=False)
             if resp.status_code == 403:
                 forbidden_urls.append(url)
-        except Exception:
+        except Exception as exc:
+            logger.debug("Check %s failed for %s: %s", "DAST-AC-002", url, exc)
             continue
 
     if not forbidden_urls:
@@ -173,7 +180,8 @@ def _check_verb_tampering(
         for method in ("POST", "PUT", "PATCH", "HEAD"):
             try:
                 resp = client.request(method, url, capture_evidence=True)
-            except Exception:
+            except Exception as exc:
+                logger.debug("Check %s failed for %s: %s", "DAST-AC-002", url, exc)
                 continue
 
             if resp.status_code == 200:
@@ -195,6 +203,13 @@ def _check_verb_tampering(
                         "authorization middleware."
                     ),
                     cwe="CWE-650",
+                    evidence=[{
+                        "method": method,
+                        "url": url,
+                        "status": resp.status_code,
+                        "payload": f"GET→403, {method}→200",
+                        "proof": resp.text[:500],
+                    }],
                 ))
                 break  # One bypass per URL is enough
 
@@ -240,7 +255,8 @@ def _check_idor(
 
                 try:
                     resp = client.get(test_url, capture_evidence=True)
-                except Exception:
+                except Exception as exc:
+                    logger.debug("Check %s failed for %s: %s", "DAST-AC-003", test_url, exc)
                     continue
 
                 if resp.status_code == 200 and len(resp.text) > 100:
@@ -264,6 +280,13 @@ def _check_idor(
                             "Use UUIDs instead of sequential IDs."
                         ),
                         cwe="CWE-639",
+                        evidence=[{
+                            "method": "GET",
+                            "url": test_url,
+                            "status": resp.status_code,
+                            "payload": f"{param_name}={test_id}",
+                            "proof": resp.text[:500],
+                        }],
                     ))
                     break
 
@@ -276,7 +299,8 @@ def _check_robots_txt_paths(
     """DAST-AC-004: Disallowed paths in robots.txt are accessible."""
     try:
         status, body = client.probe_path(target_url, "robots.txt")
-    except Exception:
+    except Exception as exc:
+        logger.debug("Check %s failed for %s: %s", "DAST-AC-004", target_url, exc)
         return
 
     if status != 200:
@@ -293,7 +317,8 @@ def _check_robots_txt_paths(
 
         try:
             probe_status, probe_body = client.probe_path(target_url, path.lstrip("/"))
-        except Exception:
+        except Exception as exc:
+            logger.debug("Check %s failed for %s: %s", "DAST-AC-004", path, exc)
             continue
 
         if probe_status == 200 and len(probe_body) > 100:
@@ -335,7 +360,8 @@ def _check_missing_auth_sensitive(
 
         try:
             resp = client.get(url, capture_evidence=False)
-        except Exception:
+        except Exception as exc:
+            logger.debug("Check %s failed for %s: %s", "DAST-AC-005", url, exc)
             continue
 
         # If we get content (not a redirect to login)
@@ -399,7 +425,8 @@ def _check_privilege_escalation_params(
 
                 try:
                     resp = client.get(test_url, capture_evidence=True)
-                except Exception:
+                except Exception as exc:
+                    logger.debug("Check %s failed for %s: %s", "DAST-AC-006", test_url, exc)
                     continue
 
                 if resp.status_code == 200:

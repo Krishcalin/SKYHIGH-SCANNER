@@ -40,6 +40,9 @@ class Finding:
     advisory: str | None = None      # Vendor advisory ID
     compliance: dict[str, list[str]] | None = None  # {framework: [controls]}
 
+    # DAST evidence — proof-of-concept request/response data
+    evidence: list[dict] | None = None  # [{method, url, status, payload, proof}]
+
     # ── Serialisation ────────────────────────────────────────────────
     def to_dict(self) -> dict:
         """Return a JSON-serialisable dictionary."""

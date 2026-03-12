@@ -13,6 +13,7 @@ Rule IDs: DAST-FI-001 through DAST-FI-005
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import TYPE_CHECKING
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
@@ -23,6 +24,8 @@ if TYPE_CHECKING:
     from ...core.credential_manager import CredentialManager
     from ..crawler import SiteMap
     from ..http_client import DastHTTPClient
+
+logger = logging.getLogger(__name__)
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -93,6 +96,7 @@ def _finding(
     description: str,
     recommendation: str,
     cwe: str | None = None,
+    evidence: list[dict] | None = None,
 ) -> Finding:
     return Finding(
         rule_id=rule_id,
@@ -106,6 +110,7 @@ def _finding(
         recommendation=recommendation,
         cwe=cwe,
         target_type="dast",
+        evidence=evidence,
     )
 
 
@@ -150,7 +155,8 @@ def _check_lfi_params(
                 injected_url = _inject_param(url, param_name, payload)
                 try:
                     resp = client.get(injected_url, capture_evidence=True)
-                except Exception:
+                except Exception as exc:
+                    logger.debug("Check %s failed for %s: %s", "DAST-FI-001", injected_url, exc)
                     continue
 
                 if detect.search(resp.text):
@@ -174,6 +180,13 @@ def _check_lfi_params(
                             "chroot or file path validation."
                         ),
                         cwe="CWE-98",
+                        evidence=[{
+                            "method": "GET",
+                            "url": injected_url,
+                            "status": resp.status_code,
+                            "payload": payload,
+                            "proof": resp.text[:500],
+                        }],
                     ))
                     break
 
@@ -194,7 +207,8 @@ def _check_lfi_encoded(
                 injected_url = _inject_param(url, param_name, payload)
                 try:
                     resp = client.get(injected_url, capture_evidence=True)
-                except Exception:
+                except Exception as exc:
+                    logger.debug("Check %s failed for %s: %s", "DAST-FI-002", injected_url, exc)
                     continue
 
                 if detect.search(resp.text):
@@ -244,7 +258,8 @@ def _check_path_traversal(
             injected_url = _inject_param(url, param_name, payload)
             try:
                 resp = client.get(injected_url, capture_evidence=True)
-            except Exception:
+            except Exception as exc:
+                logger.debug("Check %s failed for %s: %s", "DAST-FI-003", injected_url, exc)
                 continue
 
             if re.search(r"root:.*?:0:0:", resp.text):
@@ -266,6 +281,13 @@ def _check_path_traversal(
                         "check that the result starts with the base directory."
                     ),
                     cwe="CWE-22",
+                    evidence=[{
+                        "method": "GET",
+                        "url": injected_url,
+                        "status": resp.status_code,
+                        "payload": payload,
+                        "proof": resp.text[:500],
+                    }],
                 ))
 
 
@@ -290,7 +312,8 @@ def _check_rfi(
                         capture_evidence=True,
                         timeout=5,
                     )
-                except Exception:
+                except Exception as exc:
+                    logger.debug("Check %s failed for %s: %s", "DAST-FI-004", injected_url, exc)
                     continue
 
                 # Check for signs the server attempted to include the URL
@@ -320,6 +343,13 @@ def _check_rfi(
                             "of allowed includes."
                         ),
                         cwe="CWE-98",
+                        evidence=[{
+                            "method": "GET",
+                            "url": injected_url,
+                            "status": resp.status_code,
+                            "payload": payload,
+                            "proof": resp.text[:500],
+                        }],
                     ))
                     return
 
@@ -345,7 +375,8 @@ def _check_backup_files(
             backup_url = url.split("?")[0] + ext
             try:
                 status, body = client.probe_path(backup_url, "")
-            except Exception:
+            except Exception as exc:
+                logger.debug("Check %s failed for %s: %s", "DAST-FI-005", backup_url, exc)
                 continue
             checked += 1
 

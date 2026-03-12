@@ -14,6 +14,7 @@ Rule IDs: DAST-CFG-001 through DAST-CFG-010
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import TYPE_CHECKING
 
@@ -23,6 +24,8 @@ if TYPE_CHECKING:
     from ...core.credential_manager import CredentialManager
     from ..crawler import SiteMap
     from ..http_client import DastHTTPClient
+
+logger = logging.getLogger(__name__)
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -64,6 +67,7 @@ def _finding(
     description: str,
     recommendation: str,
     cwe: str | None = None,
+    evidence: list[dict] | None = None,
 ) -> Finding:
     return Finding(
         rule_id=rule_id,
@@ -77,6 +81,7 @@ def _finding(
         recommendation=recommendation,
         cwe=cwe,
         target_type="dast",
+        evidence=evidence,
     )
 
 
@@ -169,7 +174,8 @@ def _check_cookie_security(
     """DAST-CFG-003: Insecure cookie configuration."""
     try:
         resp = client.get(target_url, capture_evidence=False)
-    except Exception:
+    except Exception as exc:
+        logger.debug("Check %s failed for %s: %s", "DAST-CFG-003", target_url, exc)
         return
 
     set_cookie_headers = resp.headers.get("Set-Cookie", "")
@@ -244,7 +250,8 @@ def _check_cors(
             headers={"Origin": "https://evil.attacker.com"},
             capture_evidence=False,
         )
-    except Exception:
+    except Exception as exc:
+        logger.debug("Check %s failed for %s: %s", "DAST-CFG-004", target_url, exc)
         return
 
     acao = resp.headers.get("Access-Control-Allow-Origin", "")
@@ -268,6 +275,13 @@ def _check_cors(
                 "domains. Never use wildcard with credentials."
             ),
             cwe="CWE-942",
+            evidence=[{
+                "method": "GET",
+                "url": target_url,
+                "status": resp.status_code,
+                "payload": "Origin: https://evil.attacker.com",
+                "proof": f"ACAO: {acao}, ACAC: {acac}",
+            }],
         ))
     elif acao == "https://evil.attacker.com":
         findings.append(_finding(
@@ -287,6 +301,13 @@ def _check_cors(
                 "trusted domains."
             ),
             cwe="CWE-942",
+            evidence=[{
+                "method": "GET",
+                "url": target_url,
+                "status": resp.status_code,
+                "payload": "Origin: https://evil.attacker.com",
+                "proof": f"ACAO: {acao} (reflected)",
+            }],
         ))
 
 
@@ -298,7 +319,8 @@ def _check_http_methods(
     """DAST-CFG-005: Dangerous HTTP methods enabled."""
     try:
         resp = client.options(target_url, capture_evidence=False)
-    except Exception:
+    except Exception as exc:
+        logger.debug("Check %s failed for %s: %s", "DAST-CFG-005", target_url, exc)
         return
 
     allow = resp.headers.get("Allow", "")
@@ -322,6 +344,13 @@ def _check_http_methods(
             ),
             recommendation="Disable the TRACE method on the web server.",
             cwe="CWE-693",
+            evidence=[{
+                "method": "OPTIONS",
+                "url": target_url,
+                "status": resp.status_code,
+                "payload": "(none — passive check)",
+                "proof": f"Allow: {allow}",
+            }],
         ))
 
     other_dangerous = dangerous - {"TRACE"}
@@ -398,7 +427,8 @@ def _check_mixed_content(
             break
         try:
             resp = client.get(url, capture_evidence=False)
-        except Exception:
+        except Exception as exc:
+            logger.debug("Check %s failed for %s: %s", "DAST-CFG-007", url, exc)
             continue
         checked += 1
 

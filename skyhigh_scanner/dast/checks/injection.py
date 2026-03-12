@@ -16,6 +16,7 @@ Rule IDs: DAST-INJ-001 through DAST-INJ-008
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import TYPE_CHECKING
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
@@ -26,6 +27,8 @@ if TYPE_CHECKING:
     from ...core.credential_manager import CredentialManager
     from ..crawler import SiteMap
     from ..http_client import DastHTTPClient
+
+logger = logging.getLogger(__name__)
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -107,6 +110,7 @@ def _finding(
     description: str,
     recommendation: str,
     cwe: str | None = None,
+    evidence: list[dict] | None = None,
 ) -> Finding:
     return Finding(
         rule_id=rule_id,
@@ -120,6 +124,7 @@ def _finding(
         recommendation=recommendation,
         cwe=cwe,
         target_type="dast",
+        evidence=evidence,
     )
 
 
@@ -166,7 +171,8 @@ def _check_sql_injection_urls(
                     continue
                 try:
                     resp = client.get(injected_url, capture_evidence=True)
-                except Exception:
+                except Exception as exc:
+                    logger.debug("Check %s failed for %s: %s", "DAST-INJ-001", injected_url, exc)
                     continue
 
                 for err_pattern in SQL_ERROR_PATTERNS:
@@ -189,6 +195,13 @@ def _check_sql_injection_urls(
                                 "Never concatenate user input into SQL strings."
                             ),
                             cwe="CWE-89",
+                            evidence=[{
+                                "method": "GET",
+                                "url": injected_url,
+                                "status": resp.status_code,
+                                "payload": payload,
+                                "proof": resp.text[:500],
+                            }],
                         ))
                         break
 
@@ -220,7 +233,8 @@ def _check_sql_injection_forms(
                     resp = client.post(form.action, data=form_data)
                 else:
                     resp = client.get(form.action, params=form_data)
-            except Exception:
+            except Exception as exc:
+                logger.debug("Check %s failed for %s: %s", "DAST-INJ-002", form.action, exc)
                 continue
 
             found_sqli = False
@@ -243,6 +257,13 @@ def _check_sql_injection_forms(
                             "Validate and sanitize all form inputs."
                         ),
                         cwe="CWE-89",
+                        evidence=[{
+                            "method": form.method,
+                            "url": form.action,
+                            "status": resp.status_code,
+                            "payload": str(form_data),
+                            "proof": resp.text[:500],
+                        }],
                     ))
                     found_sqli = True
                     break
@@ -265,7 +286,8 @@ def _check_command_injection(
             for injected_url, param_name in injected_urls:
                 try:
                     resp = client.get(injected_url, capture_evidence=True)
-                except Exception:
+                except Exception as exc:
+                    logger.debug("Check %s failed for %s: %s", "DAST-INJ-003", injected_url, exc)
                     continue
 
                 if detect.search(resp.text):
@@ -287,6 +309,13 @@ def _check_command_injection(
                             "subprocess with shell=True."
                         ),
                         cwe="CWE-78",
+                        evidence=[{
+                            "method": "GET",
+                            "url": injected_url,
+                            "status": resp.status_code,
+                            "payload": payload,
+                            "proof": resp.text[:500],
+                        }],
                     ))
                     return  # Critical — stop after first confirmation
 
@@ -306,7 +335,8 @@ def _check_ssti(
             for injected_url, param_name in injected_urls:
                 try:
                     resp = client.get(injected_url, capture_evidence=True)
-                except Exception:
+                except Exception as exc:
+                    logger.debug("Check %s failed for %s: %s", "DAST-INJ-004", injected_url, exc)
                     continue
 
                 # Check if 49 appears in response (7*7) but not the raw payload
@@ -328,6 +358,13 @@ def _check_ssti(
                             "Use sandboxed template environments. Validate all input."
                         ),
                         cwe="CWE-1336",
+                        evidence=[{
+                            "method": "GET",
+                            "url": injected_url,
+                            "status": resp.status_code,
+                            "payload": payload,
+                            "proof": resp.text[:500],
+                        }],
                     ))
                     return
 
@@ -344,7 +381,8 @@ def _check_crlf_injection(
         url = f"{base}/redirect?url={payload}"
         try:
             resp = client.get(url, capture_evidence=True, allow_redirects=False)
-        except Exception:
+        except Exception as exc:
+            logger.debug("Check %s failed for %s: %s", "DAST-INJ-005", url, exc)
             continue
 
         # Check if our injected header appears in the response
@@ -401,7 +439,8 @@ def _check_host_header_injection(
             headers={"Host": "evil.skyhigh-test.com"},
             capture_evidence=True,
         )
-    except Exception:
+    except Exception as exc:
+        logger.debug("Check %s failed for %s: %s", "DAST-INJ-006", target_url, exc)
         return
 
     if "evil.skyhigh-test.com" in resp.text:
@@ -421,6 +460,13 @@ def _check_host_header_injection(
                 "hostnames. Do not use the Host header to build URLs."
             ),
             cwe="CWE-644",
+            evidence=[{
+                "method": "GET",
+                "url": target_url,
+                "status": resp.status_code,
+                "payload": "Host: evil.skyhigh-test.com",
+                "proof": resp.text[:500],
+            }],
         ))
 
 
@@ -440,7 +486,8 @@ def _check_nosql_injection(
                     json=test_data,
                     capture_evidence=True,
                 )
-            except Exception:
+            except Exception as exc:
+                logger.debug("Check %s failed for %s: %s", "DAST-INJ-007", ep.url, exc)
                 continue
 
             # If we get 200 with data when we shouldn't
@@ -470,6 +517,13 @@ def _check_nosql_injection(
                                 "Use ODM validation layers."
                             ),
                             cwe="CWE-943",
+                            evidence=[{
+                                "method": "POST",
+                                "url": ep.url,
+                                "status": resp.status_code,
+                                "payload": str(test_data),
+                                "proof": resp.text[:500],
+                            }],
                         ))
                         return
                 except (ValueError, KeyError):
@@ -499,7 +553,8 @@ def _check_xpath_injection(
         for injected_url, param_name in injected_urls:
             try:
                 resp = client.get(injected_url, capture_evidence=True)
-            except Exception:
+            except Exception as exc:
+                logger.debug("Check %s failed for %s: %s", "DAST-INJ-008", injected_url, exc)
                 continue
 
             for err in xpath_errors:
@@ -520,6 +575,13 @@ def _check_xpath_injection(
                             "Validate and sanitize user input."
                         ),
                         cwe="CWE-643",
+                        evidence=[{
+                            "method": "GET",
+                            "url": injected_url,
+                            "status": resp.status_code,
+                            "payload": xpath_payload,
+                            "proof": resp.text[:500],
+                        }],
                     ))
                     return
 

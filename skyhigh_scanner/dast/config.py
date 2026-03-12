@@ -128,9 +128,11 @@ class RateLimiter:
 
     def __init__(self, rate: float = 10.0, burst: int | None = None):
         self.rate = max(rate, 0.1)
+        self._base_rate = self.rate
         self.burst = burst or max(int(self.rate), 1)
         self._tokens: float = float(self.burst)
         self._last_refill = time.monotonic()
+        self._backoff_until: float = 0.0
         self._lock = threading.Lock()
 
     def acquire(self) -> None:
@@ -143,6 +145,19 @@ class RateLimiter:
                     return
             # Sleep for the time needed to generate one token
             time.sleep(1.0 / self.rate)
+
+    def adapt(self, status_code: int) -> None:
+        """Adapt rate based on server responses.
+
+        Halves rate on 429/5xx, gradually recovers on success.
+        """
+        with self._lock:
+            now = time.monotonic()
+            if status_code == 429 or status_code >= 500:
+                self.rate = max(self.rate / 2.0, 0.5)
+                self._backoff_until = now + 30.0
+            elif status_code < 400 and now > self._backoff_until and self.rate < self._base_rate:
+                self.rate = min(self.rate * 1.5, self._base_rate)
 
     def _refill(self) -> None:
         """Add tokens based on elapsed time."""
@@ -192,6 +207,70 @@ class RequestCounter:
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Circuit Breaker
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+class CircuitBreakerOpen(Exception):
+    """Raised when the circuit breaker is in open state."""
+
+
+class CircuitBreaker:
+    """Thread-safe circuit breaker to stop requests when the target is unresponsive.
+
+    States:
+        closed   — normal operation, requests pass through
+        open     — too many failures, requests blocked
+        half-open — after reset_timeout, one probe request is allowed
+    """
+
+    CLOSED = "closed"
+    OPEN = "open"
+    HALF_OPEN = "half-open"
+
+    def __init__(self, threshold: int = 10, reset_timeout: float = 60.0):
+        self.threshold = threshold
+        self.reset_timeout = reset_timeout
+        self._state = self.CLOSED
+        self._failure_count = 0
+        self._opened_at: float = 0.0
+        self._lock = threading.Lock()
+
+    @property
+    def state(self) -> str:
+        with self._lock:
+            if self._state == self.OPEN and time.monotonic() - self._opened_at >= self.reset_timeout:
+                self._state = self.HALF_OPEN
+            return self._state
+
+    def check(self) -> None:
+        """Raise CircuitBreakerOpen if the circuit is open."""
+        current = self.state
+        if current == self.OPEN:
+            raise CircuitBreakerOpen(
+                f"Circuit breaker open — {self._failure_count} consecutive failures. "
+                f"Retry in {self.reset_timeout:.0f}s."
+            )
+
+    def record_success(self) -> None:
+        """Record a successful request — reset to closed."""
+        with self._lock:
+            self._failure_count = 0
+            self._state = self.CLOSED
+
+    def record_failure(self) -> None:
+        """Record a failed request — trip if threshold reached."""
+        with self._lock:
+            self._failure_count += 1
+            if self._failure_count >= self.threshold:
+                self._state = self.OPEN
+                self._opened_at = time.monotonic()
+
+    @property
+    def failure_count(self) -> int:
+        return self._failure_count
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # DAST Configuration
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -226,6 +305,11 @@ class DastConfig:
     passive_only: bool = False
     custom_headers: dict[str, str] = field(default_factory=dict)
     accept_risk: bool = False
+    verify_ssl: bool = False
+    user_agent: str = "SkyHigh-DAST/1.0"
+    proxy: str | None = None
+    max_pages: int = 500
+    max_retries: int = 3
 
     def __post_init__(self) -> None:
         valid_modes = {"none", "cookie", "bearer", "basic", "form"}
@@ -272,7 +356,8 @@ class DastConfig:
             scope=scope,
             rate_limit_rps=getattr(args, "dast_rate_limit", 10.0),
             max_requests=getattr(args, "dast_max_requests", 10000),
-            request_timeout=getattr(args, "timeout", 15),
+            request_timeout=getattr(args, "dast_request_timeout",
+                                    getattr(args, "timeout", 15)),
             auth_mode=getattr(args, "dast_auth_mode", "none"),
             auth_token=getattr(args, "dast_auth_token", None),
             auth_form_url=getattr(args, "dast_login_url", None),
@@ -280,6 +365,11 @@ class DastConfig:
             crawl_enabled=not getattr(args, "dast_no_crawl", False),
             passive_only=getattr(args, "dast_passive_only", False),
             accept_risk=getattr(args, "dast_accept_risk", False),
+            verify_ssl=getattr(args, "dast_verify_ssl", False),
+            user_agent=getattr(args, "dast_user_agent", "SkyHigh-DAST/1.0"),
+            proxy=getattr(args, "dast_proxy", None),
+            max_pages=getattr(args, "dast_max_pages", 500),
+            max_retries=getattr(args, "dast_retries", 3),
         )
 
 

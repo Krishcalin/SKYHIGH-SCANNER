@@ -16,6 +16,7 @@ Rule IDs: DAST-API-001 through DAST-API-008
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import TYPE_CHECKING
 
@@ -25,6 +26,8 @@ if TYPE_CHECKING:
     from ...core.credential_manager import CredentialManager
     from ..crawler import SiteMap
     from ..http_client import DastHTTPClient
+
+logger = logging.getLogger(__name__)
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -94,6 +97,7 @@ def _finding(
     description: str,
     recommendation: str,
     cwe: str | None = None,
+    evidence: list[dict] | None = None,
 ) -> Finding:
     return Finding(
         rule_id=rule_id,
@@ -107,6 +111,7 @@ def _finding(
         recommendation=recommendation,
         cwe=cwe,
         target_type="dast",
+        evidence=evidence,
     )
 
 
@@ -167,7 +172,8 @@ def _check_graphql_introspection(
                 data=GRAPHQL_INTROSPECTION_QUERY,
                 headers={"Content-Type": "application/json"},
             )
-        except Exception:
+        except Exception as exc:
+            logger.debug("Check %s failed for %s: %s", "DAST-API-002", url, exc)
             continue
 
         if resp.status_code == 200:
@@ -191,9 +197,17 @@ def _check_graphql_introspection(
                             "Most GraphQL servers support disabling introspection."
                         ),
                         cwe="CWE-200",
+                        evidence=[{
+                            "method": "POST",
+                            "url": url,
+                            "status": resp.status_code,
+                            "payload": GRAPHQL_INTROSPECTION_QUERY,
+                            "proof": resp.text[:500],
+                        }],
                     ))
                     return
-            except (ValueError, KeyError):
+            except (ValueError, KeyError) as exc:
+                logger.debug("Check %s failed for %s: %s", "DAST-API-002", url, exc)
                 continue
 
 
@@ -208,7 +222,8 @@ def _check_api_documentation_exposed(
     for path in API_DOC_PATHS:
         try:
             status, body = client.probe_path(target_url, path)
-        except Exception:
+        except Exception as exc:
+            logger.debug("Check %s failed for %s: %s", "DAST-API-003", path, exc)
             continue
 
         if status == 200 and len(body) > 100:
@@ -262,7 +277,8 @@ def _check_verbose_api_errors(
     for url in api_urls:
         try:
             resp = client.get(url, capture_evidence=False)
-        except Exception:
+        except Exception as exc:
+            logger.debug("Check %s failed for %s: %s", "DAST-API-004", url, exc)
             continue
 
         body = resp.text
@@ -305,7 +321,8 @@ def _check_rate_limiting(
     for url in api_urls:
         try:
             resp = client.get(url, capture_evidence=False)
-        except Exception:
+        except Exception as exc:
+            logger.debug("Check %s failed for %s: %s", "DAST-API-005", url, exc)
             continue
 
         has_rate_limit = any(
@@ -349,7 +366,8 @@ def _check_api_authentication(
             continue
         try:
             resp = client.get(ep.url, capture_evidence=False)
-        except Exception:
+        except Exception as exc:
+            logger.debug("Check %s failed for %s: %s", "DAST-API-006", ep.url, exc)
             continue
 
         if resp.status_code == 200:
@@ -387,7 +405,8 @@ def _check_api_cors(
                 headers={"Origin": "https://evil.attacker.com"},
                 capture_evidence=False,
             )
-        except Exception:
+        except Exception as exc:
+            logger.debug("Check %s failed for %s: %s", "DAST-API-007", ep.url, exc)
             continue
 
         acao = resp.headers.get("Access-Control-Allow-Origin", "")
@@ -411,6 +430,13 @@ def _check_api_cors(
                     "Never use wildcard with credentials on API endpoints."
                 ),
                 cwe="CWE-942",
+                evidence=[{
+                    "method": "GET",
+                    "url": ep.url,
+                    "status": resp.status_code,
+                    "payload": "Origin: https://evil.attacker.com",
+                    "proof": f"ACAO: {acao}, ACAC: {acac}",
+                }],
             ))
             return  # One finding applies to the whole API
 
@@ -434,7 +460,8 @@ def _check_api_mass_assignment(
                 json=test_payload,
                 capture_evidence=False,
             )
-        except Exception:
+        except Exception as exc:
+            logger.debug("Check %s failed for %s: %s", "DAST-API-008", ep.url, exc)
             continue
 
         # If server returns 200/201 without rejecting unknown fields
@@ -465,9 +492,17 @@ def _check_api_mass_assignment(
                             "properties. Never bind directly to models."
                         ),
                         cwe="CWE-915",
+                        evidence=[{
+                            "method": "POST",
+                            "url": ep.url,
+                            "status": resp.status_code,
+                            "payload": str(test_payload),
+                            "proof": resp.text[:500],
+                        }],
                     ))
                     return
-            except (ValueError, KeyError):
+            except (ValueError, KeyError) as exc:
+                logger.debug("Check %s failed for %s: %s", "DAST-API-008", ep.url, exc)
                 continue
 
 

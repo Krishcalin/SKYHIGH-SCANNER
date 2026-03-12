@@ -204,6 +204,18 @@ def _add_dast_args(parser: argparse.ArgumentParser) -> None:
                       help="Suppress the pre-scan warning banner")
     dast.add_argument("--dast-follow-subdomains", action="store_true",
                       help="Include subdomains in scope")
+    dast.add_argument("--dast-request-timeout", type=int, default=15,
+                      help="Per-request timeout in seconds (default: 15)")
+    dast.add_argument("--dast-verify-ssl", action="store_true",
+                      help="Verify SSL certificates (default: off)")
+    dast.add_argument("--dast-max-pages", type=int, default=500,
+                      help="Maximum pages to crawl (default: 500)")
+    dast.add_argument("--dast-user-agent", default="SkyHigh-DAST/1.0",
+                      help="Custom User-Agent header (default: SkyHigh-DAST/1.0)")
+    dast.add_argument("--dast-proxy",
+                      help="HTTP proxy (e.g. http://127.0.0.1:8080)")
+    dast.add_argument("--dast-retries", type=int, default=3,
+                      help="Max retries per request on failure (default: 3)")
 
 
 def _add_scan_args(parser: argparse.ArgumentParser) -> None:

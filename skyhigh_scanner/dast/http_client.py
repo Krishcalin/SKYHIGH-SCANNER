@@ -12,10 +12,12 @@ Wraps the ``requests`` library with:
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import dataclass, field
 from typing import Any
 
 from .config import (
+    CircuitBreaker,
     DastConfig,
     RateLimiter,
     RequestCounter,
@@ -47,6 +49,7 @@ class RequestEvidence:
     request_body: str | None = None
     response_headers: dict[str, str] = field(default_factory=dict)
     response_body_snippet: str = ""
+    response_time_ms: float = 0.0
 
     def summary(self) -> str:
         """One-line summary for Finding.line_content."""
@@ -71,7 +74,7 @@ class DastHTTPClient:
         verify_ssl: Whether to verify SSL certificates.
     """
 
-    def __init__(self, config: DastConfig, verify_ssl: bool = False):
+    def __init__(self, config: DastConfig, verify_ssl: bool | None = None):
         if not HAS_REQUESTS:
             raise ImportError(
                 "DAST scanner requires 'requests'. Install with: pip install requests"
@@ -79,14 +82,39 @@ class DastHTTPClient:
 
         self.config = config
         self._session = requests.Session()
-        self._session.verify = verify_ssl
 
-        # Rate limiter and request counter
+        # SSL verification — explicit param takes precedence, else config
+        ssl_verify = verify_ssl if verify_ssl is not None else config.verify_ssl
+        self._session.verify = ssl_verify
+
+        # Connection pooling
+        from requests.adapters import HTTPAdapter
+        adapter = HTTPAdapter(pool_connections=20, pool_maxsize=20)
+        self._session.mount("https://", adapter)
+        self._session.mount("http://", adapter)
+
+        # Rate limiter, request counter, circuit breaker
         self._rate_limiter = RateLimiter(rate=config.rate_limit_rps)
         self._counter = RequestCounter(max_requests=config.max_requests)
+        self._circuit_breaker = CircuitBreaker()
+        self._max_retries = config.max_retries
 
         # Evidence log
         self.evidence: list[RequestEvidence] = []
+
+        # Response time tracking
+        self._response_times: list[float] = []
+        self._total_response_time_ms: float = 0.0
+
+        # User-Agent
+        self._session.headers["User-Agent"] = config.user_agent
+
+        # Proxy
+        if config.proxy:
+            self._session.proxies = {
+                "http": config.proxy,
+                "https": config.proxy,
+            }
 
         # Apply authentication
         self._setup_auth()
@@ -96,7 +124,7 @@ class DastHTTPClient:
             self._session.headers.update(config.custom_headers)
 
         # Suppress SSL warnings when not verifying
-        if not verify_ssl:
+        if not ssl_verify:
             import urllib3
             urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -137,7 +165,7 @@ class DastHTTPClient:
         capture_evidence: bool = True,
         **kwargs,
     ) -> requests.Response:
-        """Send an HTTP request with scope enforcement and rate limiting.
+        """Send an HTTP request with scope enforcement, rate limiting, and retries.
 
         Args:
             method: HTTP method (GET, POST, PUT, DELETE, etc.).
@@ -151,31 +179,80 @@ class DastHTTPClient:
         Raises:
             ScopeViolation: If the URL is out of scope.
             RequestLimitExceeded: If the max request cap is reached.
+            CircuitBreakerOpen: If the circuit breaker is open.
         """
         self._check_scope(url)
         self._counter.increment()
+        self._circuit_breaker.check()
         self._rate_limiter.acquire()
 
         kwargs.setdefault("timeout", self.config.request_timeout)
         kwargs.setdefault("allow_redirects", True)
 
-        resp = self._session.request(method, url, **kwargs)
+        last_exc: Exception | None = None
 
-        if capture_evidence:
-            body = kwargs.get("data") or kwargs.get("json")
-            body_str = str(body)[:500] if body else None
-            ev = RequestEvidence(
-                method=method.upper(),
-                url=url,
-                status_code=resp.status_code,
-                request_headers=dict(resp.request.headers),
-                request_body=body_str,
-                response_headers=dict(resp.headers),
-                response_body_snippet=resp.text[:2000] if resp.text else "",
-            )
-            self.evidence.append(ev)
+        for attempt in range(self._max_retries):
+            try:
+                t0 = time.monotonic()
+                resp = self._session.request(method, url, **kwargs)
+                elapsed_ms = (time.monotonic() - t0) * 1000.0
 
-        return resp
+                # Track response time
+                self._response_times.append(elapsed_ms)
+                self._total_response_time_ms += elapsed_ms
+
+                if resp.status_code >= 500:
+                    # Server error — record failure and retry
+                    self._circuit_breaker.record_failure()
+                    self._rate_limiter.adapt(resp.status_code)
+                    last_exc = requests.HTTPError(
+                        f"{resp.status_code} Server Error", response=resp,
+                    )
+                    if attempt < self._max_retries - 1:
+                        backoff = min(2 ** attempt, 30)
+                        logger.debug(
+                            "Retry %d/%d for %s %s (status %d, backoff %.1fs)",
+                            attempt + 1, self._max_retries, method, url,
+                            resp.status_code, backoff,
+                        )
+                        time.sleep(backoff)
+                        continue
+
+                # Success or client error (no retry on 4xx)
+                self._circuit_breaker.record_success()
+                self._rate_limiter.adapt(resp.status_code)
+
+                if capture_evidence:
+                    body = kwargs.get("data") or kwargs.get("json")
+                    body_str = str(body)[:500] if body else None
+                    ev = RequestEvidence(
+                        method=method.upper(),
+                        url=url,
+                        status_code=resp.status_code,
+                        request_headers=dict(resp.request.headers),
+                        request_body=body_str,
+                        response_headers=dict(resp.headers),
+                        response_body_snippet=resp.text[:2000] if resp.text else "",
+                        response_time_ms=round(elapsed_ms, 1),
+                    )
+                    self.evidence.append(ev)
+
+                return resp
+
+            except (requests.ConnectionError, requests.Timeout) as exc:
+                self._circuit_breaker.record_failure()
+                last_exc = exc
+                if attempt < self._max_retries - 1:
+                    backoff = min(2 ** attempt, 30)
+                    logger.debug(
+                        "Retry %d/%d for %s %s (%s, backoff %.1fs)",
+                        attempt + 1, self._max_retries, method, url,
+                        type(exc).__name__, backoff,
+                    )
+                    time.sleep(backoff)
+
+        # All retries exhausted
+        raise last_exc  # type: ignore[misc]
 
     # ── Convenience methods ───────────────────────────────────────────
 
@@ -253,6 +330,23 @@ class DastHTTPClient:
     def request_count(self) -> int:
         """Number of requests sent so far."""
         return self._counter.count
+
+    @property
+    def avg_response_time_ms(self) -> float:
+        """Average response time in milliseconds."""
+        if not self._response_times:
+            return 0.0
+        return self._total_response_time_ms / len(self._response_times)
+
+    @property
+    def p95_response_time_ms(self) -> float:
+        """95th percentile response time in milliseconds."""
+        if not self._response_times:
+            return 0.0
+        sorted_times = sorted(self._response_times)
+        idx = int(len(sorted_times) * 0.95)
+        idx = min(idx, len(sorted_times) - 1)
+        return sorted_times[idx]
 
     def close(self) -> None:
         """Close the underlying session."""

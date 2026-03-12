@@ -9,6 +9,8 @@ import time
 import pytest
 
 from skyhigh_scanner.dast.config import (
+    CircuitBreaker,
+    CircuitBreakerOpen,
     DastConfig,
     RateLimiter,
     RequestCounter,
@@ -277,3 +279,103 @@ class TestScopeFileLoading:
         scope = _load_scope_file(str(scope_file))
         assert scope.is_host_allowed("test.com")
         assert scope.max_depth == 5  # default
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Adaptive RateLimiter (Phase 6)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+class TestRateLimiterAdaptive:
+    def test_base_rate_stored(self):
+        rl = RateLimiter(rate=15.0)
+        assert rl._base_rate == 15.0
+
+    def test_adapt_reduces_on_server_error(self):
+        rl = RateLimiter(rate=20.0)
+        rl.adapt(500)
+        assert rl.rate == 10.0
+
+    def test_adapt_reduces_on_429(self):
+        rl = RateLimiter(rate=20.0)
+        rl.adapt(429)
+        assert rl.rate == 10.0
+
+    def test_adapt_ignores_client_errors(self):
+        rl = RateLimiter(rate=20.0)
+        rl.adapt(400)
+        assert rl.rate == 20.0
+        rl.adapt(403)
+        assert rl.rate == 20.0
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# CircuitBreaker (Phase 6)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+class TestCircuitBreakerConfig:
+    def test_default_threshold(self):
+        cb = CircuitBreaker()
+        assert cb.threshold == 10
+
+    def test_custom_threshold(self):
+        cb = CircuitBreaker(threshold=5, reset_timeout=30.0)
+        assert cb.threshold == 5
+        assert cb.reset_timeout == 30.0
+
+    def test_check_passes_when_closed(self):
+        cb = CircuitBreaker()
+        cb.check()  # Should not raise
+
+    def test_check_raises_when_open(self):
+        cb = CircuitBreaker(threshold=1)
+        cb.record_failure()
+        with pytest.raises(CircuitBreakerOpen):
+            cb.check()
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# New DastConfig fields (Phase 6)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+class TestDastConfigPhase6:
+    def test_new_field_defaults(self):
+        config = DastConfig()
+        assert config.verify_ssl is False
+        assert config.user_agent == "SkyHigh-DAST/1.0"
+        assert config.proxy is None
+        assert config.max_pages == 500
+        assert config.max_retries == 3
+
+    def test_from_cli_args_maps_new_fields(self):
+        from argparse import Namespace
+        args = Namespace(
+            target="https://example.com",
+            ip_range=None,
+            dast_scope=None,
+            dast_rate_limit=10.0,
+            dast_max_requests=10000,
+            dast_crawl_depth=5,
+            dast_auth_mode="none",
+            dast_auth_token=None,
+            dast_login_url=None,
+            dast_login_user=None,
+            dast_login_password=None,
+            dast_no_crawl=False,
+            dast_passive_only=False,
+            dast_accept_risk=False,
+            dast_follow_subdomains=False,
+            dast_request_timeout=25,
+            dast_verify_ssl=True,
+            dast_max_pages=100,
+            dast_user_agent="Test/1.0",
+            dast_proxy="http://proxy:9090",
+            dast_retries=2,
+            timeout=30,
+        )
+        config = DastConfig.from_cli_args(args)
+        assert config.request_timeout == 25
+        assert config.verify_ssl is True
+        assert config.max_pages == 100
+        assert config.user_agent == "Test/1.0"
+        assert config.proxy == "http://proxy:9090"
+        assert config.max_retries == 2

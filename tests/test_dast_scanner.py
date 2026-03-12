@@ -264,3 +264,74 @@ class TestDastCLI:
         assert args.dast_no_crawl is True
         assert args.dast_accept_risk is True
         assert args.dast_follow_subdomains is True
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Concurrent dispatch & perf metrics (Phase 6)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+class TestConcurrentDispatch:
+    def test_dispatch_calls_all_enabled_modules(self):
+        config = DastConfig(
+            scope=ScopePolicy(allowed_hosts=["example.com"]),
+            accept_risk=True,
+        )
+        scanner = DastScanner(
+            target="https://example.com",
+            dast_config=config,
+        )
+        mock_client = MagicMock()
+        sitemap = SiteMap()
+        sitemap.urls.add("https://example.com")
+
+        called = []
+
+        def track_run(module_name, *args, **kwargs):
+            called.append(module_name)
+            return []
+
+        scanner._run_check_module = track_run
+        scanner._dispatch_checks(mock_client, "https://example.com", sitemap)
+
+        # All 8 check modules should be called
+        assert len(called) == 8
+
+    def test_dispatch_handles_import_errors(self):
+        config = DastConfig(
+            scope=ScopePolicy(allowed_hosts=["example.com"]),
+            accept_risk=True,
+        )
+        scanner = DastScanner(
+            target="https://example.com",
+            dast_config=config,
+        )
+        mock_client = MagicMock()
+        sitemap = SiteMap()
+
+        # Should not raise even with missing modules
+        scanner._dispatch_checks(mock_client, "https://example.com", sitemap)
+
+
+class TestPerfMetrics:
+    def test_summary_includes_performance(self):
+        config = DastConfig(
+            scope=ScopePolicy(allowed_hosts=["example.com"]),
+            accept_risk=True,
+        )
+        scanner = DastScanner(
+            target="https://example.com",
+            dast_config=config,
+        )
+        scanner._perf_metrics = {
+            "avg_response_time_ms": 42.5,
+            "p95_response_time_ms": 120.3,
+        }
+        s = scanner.summary()
+        assert "performance" in s["dast_metadata"]
+        assert s["dast_metadata"]["performance"]["avg_response_time_ms"] == 42.5
+        assert s["dast_metadata"]["performance"]["p95_response_time_ms"] == 120.3
+
+    def test_perf_metrics_default_empty(self):
+        scanner = DastScanner(target="https://example.com")
+        s = scanner.summary()
+        assert s["dast_metadata"]["performance"] == {}

@@ -13,6 +13,7 @@ Rule IDs: DAST-XSS-001 through DAST-XSS-005
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import TYPE_CHECKING
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
@@ -23,6 +24,8 @@ if TYPE_CHECKING:
     from ...core.credential_manager import CredentialManager
     from ..crawler import SiteMap
     from ..http_client import DastHTTPClient
+
+logger = logging.getLogger(__name__)
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -85,6 +88,7 @@ def _finding(
     description: str,
     recommendation: str,
     cwe: str | None = None,
+    evidence: list[dict] | None = None,
 ) -> Finding:
     return Finding(
         rule_id=rule_id,
@@ -98,6 +102,7 @@ def _finding(
         recommendation=recommendation,
         cwe=cwe,
         target_type="dast",
+        evidence=evidence,
     )
 
 
@@ -136,7 +141,8 @@ def _check_reflected_xss_params(
                 injected_url = _inject_param(url, param_name, payload)
                 try:
                     resp = client.get(injected_url, capture_evidence=True)
-                except Exception:
+                except Exception as exc:
+                    logger.debug("Check %s failed for %s: %s", "DAST-XSS-001", injected_url, exc)
                     continue
 
                 if detect in resp.text:
@@ -159,6 +165,13 @@ def _check_reflected_xss_params(
                             "Content Security Policy."
                         ),
                         cwe="CWE-79",
+                        evidence=[{
+                            "method": "GET",
+                            "url": injected_url,
+                            "status": resp.status_code,
+                            "payload": payload,
+                            "proof": resp.text[:500],
+                        }],
                     ))
                     break  # Found XSS in this param, move to next
 
@@ -192,7 +205,8 @@ def _check_reflected_xss_forms(
                 resp = client.post(form.action, data=form_data)
             else:
                 resp = client.get(form.action, params=form_data)
-        except Exception:
+        except Exception as exc:
+            logger.debug("Check %s failed for %s: %s", "DAST-XSS-002", form.action, exc)
             continue
 
         if detect in resp.text:
@@ -230,7 +244,8 @@ def _check_dom_xss(
             break
         try:
             resp = client.get(url, capture_evidence=False)
-        except Exception:
+        except Exception as exc:
+            logger.debug("Check %s failed for %s: %s", "DAST-XSS-003", url, exc)
             continue
         checked += 1
 
@@ -304,8 +319,8 @@ def _check_xss_in_headers(
                 ),
                 cwe="CWE-79",
             ))
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("Check %s failed for %s: %s", "DAST-XSS-004", target_url, exc)
 
     # Test User-Agent header injection
     try:
@@ -332,8 +347,8 @@ def _check_xss_in_headers(
                 ),
                 cwe="CWE-79",
             ))
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("Check %s failed for %s: %s", "DAST-XSS-004", target_url, exc)
 
 
 def _check_xss_error_pages(
@@ -349,7 +364,8 @@ def _check_xss_error_pages(
     url = f"{base}/{payload}"
     try:
         resp = client.get(url, capture_evidence=True)
-    except Exception:
+    except Exception as exc:
+        logger.debug("Check %s failed for %s: %s", "DAST-XSS-005", url, exc)
         return
 
     if payload in resp.text:

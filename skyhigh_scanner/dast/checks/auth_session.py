@@ -16,6 +16,7 @@ Rule IDs: DAST-AUTH-001 through DAST-AUTH-009
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import TYPE_CHECKING
 
@@ -25,6 +26,8 @@ if TYPE_CHECKING:
     from ...core.credential_manager import CredentialManager
     from ..crawler import SiteMap
     from ..http_client import DastHTTPClient
+
+logger = logging.getLogger(__name__)
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -94,6 +97,7 @@ def _finding(
     description: str,
     recommendation: str,
     cwe: str | None = None,
+    evidence: list[dict] | None = None,
 ) -> Finding:
     return Finding(
         rule_id=rule_id,
@@ -107,6 +111,7 @@ def _finding(
         recommendation=recommendation,
         cwe=cwe,
         target_type="dast",
+        evidence=evidence,
     )
 
 
@@ -227,7 +232,8 @@ def _check_password_autocomplete(
             break
         try:
             resp = client.get(url, capture_evidence=False)
-        except Exception:
+        except Exception as exc:
+            logger.debug("Check %s failed for %s: %s", "DAST-AUTH-004", url, exc)
             continue
         checked += 1
 
@@ -265,7 +271,8 @@ def _check_session_cookie_security(
     """DAST-AUTH-005: Session cookie security attributes."""
     try:
         resp = client.get(target_url, capture_evidence=False)
-    except Exception:
+    except Exception as exc:
+        logger.debug("Check %s failed for %s: %s", "DAST-AUTH-005", target_url, exc)
         return
 
     set_cookie = resp.headers.get("Set-Cookie", "")
@@ -294,6 +301,13 @@ def _check_session_cookie_security(
                 ),
                 recommendation="Set HttpOnly flag on all session cookies.",
                 cwe="CWE-1004",
+                evidence=[{
+                    "method": "GET",
+                    "url": target_url,
+                    "status": resp.status_code,
+                    "payload": "(none — passive check)",
+                    "proof": f"Set-Cookie: {cookie}",
+                }],
             ))
 
         # Check for session cookie without Secure
@@ -310,6 +324,13 @@ def _check_session_cookie_security(
                 ),
                 recommendation="Set Secure flag on all session cookies.",
                 cwe="CWE-614",
+                evidence=[{
+                    "method": "GET",
+                    "url": target_url,
+                    "status": resp.status_code,
+                    "payload": "(none — passive check)",
+                    "proof": f"Set-Cookie: {cookie}",
+                }],
             ))
 
 
@@ -378,7 +399,8 @@ def _check_default_credentials(
 
             try:
                 resp = client.post(form.action, data=form_data)
-            except Exception:
+            except Exception as exc:
+                logger.debug("Check %s failed for %s: %s", "DAST-AUTH-007", form.action, exc)
                 continue
 
             # Heuristic: login succeeded if redirected to non-login page
@@ -403,6 +425,13 @@ def _check_default_credentials(
                             "Consider account lockout after failed attempts."
                         ),
                         cwe="CWE-798",
+                        evidence=[{
+                            "method": "POST",
+                            "url": form.action,
+                            "status": resp.status_code,
+                            "payload": f"{user}:{pw}",
+                            "proof": f"Login succeeded — redirected to {final_url}",
+                        }],
                     ))
                     return  # Stop after first successful login
 
@@ -417,7 +446,8 @@ def _check_session_fixation(
     try:
         resp1 = client.get(target_url, capture_evidence=False)
         resp2 = client.get(target_url, capture_evidence=False)
-    except Exception:
+    except Exception as exc:
+        logger.debug("Check %s failed for %s: %s", "DAST-AUTH-008", target_url, exc)
         return
 
     set_cookie1 = resp1.headers.get("Set-Cookie", "")

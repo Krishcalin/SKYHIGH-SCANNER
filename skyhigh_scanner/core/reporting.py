@@ -52,6 +52,58 @@ SEVERITY_BADGE = {
 }
 
 
+def _build_evidence_html(evidence: list[dict] | None) -> str:
+    """Build HTML for DAST evidence (request/response proof)."""
+    if not evidence:
+        return ""
+    rows = []
+    for ev in evidence:
+        method = html.escape(str(ev.get("method", "")))
+        url = html.escape(str(ev.get("url", "")))
+        status = ev.get("status", "")
+        payload = html.escape(str(ev.get("payload", "")))
+        proof = html.escape(str(ev.get("proof", ""))[:500])
+        rows.append(f"""
+        <div class="evidence-item">
+          <div class="evidence-request">
+            <span class="ev-method">{method}</span>
+            <span class="ev-url">{url}</span>
+            <span class="ev-status">→ {status}</span>
+          </div>
+          {"<div class='evidence-payload'><strong>Payload:</strong> <code>" + payload + "</code></div>" if payload and payload != "(none — passive check)" else ""}
+          <div class="evidence-proof"><strong>Proof:</strong> <pre>{proof}</pre></div>
+        </div>""")
+    return f"""
+    <div class="evidence-section">
+      <strong class="evidence-title">Evidence</strong>
+      {"".join(rows)}
+    </div>"""
+
+
+def _build_pdf_evidence_html(evidence: list[dict] | None) -> str:
+    """Build print-friendly HTML for DAST evidence."""
+    if not evidence:
+        return ""
+    rows = []
+    for ev in evidence:
+        method = html.escape(str(ev.get("method", "")))
+        url = html.escape(str(ev.get("url", "")))
+        status = ev.get("status", "")
+        payload = html.escape(str(ev.get("payload", "")))
+        proof = html.escape(str(ev.get("proof", ""))[:300])
+        rows.append(f"""
+        <div class="ev-item">
+          <div class="ev-req"><strong>{method}</strong> {url} → {status}</div>
+          {"<div class='ev-pl'><strong>Payload:</strong> <code>" + payload + "</code></div>" if payload and payload != "(none — passive check)" else ""}
+          <div class="ev-pr"><strong>Proof:</strong><pre>{proof}</pre></div>
+        </div>""")
+    return f"""
+    <div class="evidence-section">
+      <strong>Evidence</strong>
+      {"".join(rows)}
+    </div>"""
+
+
 def _build_charts_data(findings: list[Finding], summary: dict) -> dict:
     """Compute data needed for Chart.js visualisations.
 
@@ -312,6 +364,7 @@ def generate_html_report(
              html.escape(f.cwe) + "</div>" if f.cwe else ""}
             {"<div class='finding-detail compliance-detail'><strong>Compliance:</strong> " +
              html.escape(format_controls(f.compliance)) + "</div>" if f.compliance else ""}
+            {_build_evidence_html(f.evidence)}
           </div>
         </div>""")
 
@@ -392,6 +445,32 @@ def generate_html_report(
   .finding-detail {{ margin-top:8px; font-size:0.9em; line-height:1.5; }}
   .recommendation {{ color:#4CAF50; }}
   .compliance-detail {{ color:#82aaff; }}
+
+  .evidence-section {{
+    margin-top:12px; padding:10px; background:#0d1b3e;
+    border-radius:6px; border-left:3px solid #82aaff;
+  }}
+  .evidence-title {{ color:#82aaff; font-size:0.9em; display:block; margin-bottom:8px; }}
+  .evidence-item {{ margin-bottom:8px; }}
+  .evidence-request {{
+    font-family:monospace; font-size:0.85em; padding:4px 8px;
+    background:#16213e; border-radius:4px; margin-bottom:4px;
+  }}
+  .ev-method {{ color:#4CAF50; font-weight:bold; }}
+  .ev-url {{ color:#e0e0e0; word-break:break-all; }}
+  .ev-status {{ color:#fd7e14; }}
+  .evidence-payload {{ font-size:0.85em; margin:4px 0; }}
+  .evidence-payload code {{
+    background:#16213e; padding:2px 6px; border-radius:3px;
+    color:#ff6b6b; font-family:monospace;
+  }}
+  .evidence-proof {{ font-size:0.85em; }}
+  .evidence-proof pre {{
+    background:#16213e; padding:8px; border-radius:4px;
+    overflow-x:auto; white-space:pre-wrap; word-break:break-all;
+    color:#aaa; font-size:0.8em; max-height:200px; overflow-y:auto;
+    margin-top:4px;
+  }}
 
   .compliance-section {{ padding:20px 40px; }}
   .compliance-section h3 {{ margin-bottom:12px; }}
@@ -604,6 +683,7 @@ def _build_pdf_html(
             </div>
             {cwe_line}
             {comp_line}
+            {_build_pdf_evidence_html(f.evidence)}
           </div>
         </div>""")
 
@@ -711,6 +791,20 @@ def _build_pdf_html(
   .finding-detail {{ margin-top: 4px; font-size: 9pt; line-height: 1.4; }}
   .recommendation {{ color: #2e7d32; }}
   .compliance-detail {{ color: #1565c0; }}
+
+  .evidence-section {{
+    margin-top: 6px; padding: 6px 8px; background: #f0f4ff;
+    border-left: 3px solid #1565c0; border-radius: 4px; font-size: 8pt;
+  }}
+  .ev-item {{ margin-bottom: 4px; }}
+  .ev-req {{ font-family: monospace; font-size: 7.5pt; }}
+  .ev-pl {{ margin: 2px 0; }}
+  .ev-pl code {{ background: #e8eaf6; padding: 1px 4px; border-radius: 2px; font-size: 7.5pt; }}
+  .ev-pr pre {{
+    background: #f4f6f9; padding: 4px; border-radius: 3px;
+    font-size: 7pt; white-space: pre-wrap; word-break: break-all;
+    max-height: 100px; overflow: hidden; margin-top: 2px;
+  }}
 
   .compliance-section {{ margin-top: 20px; page-break-before: auto; }}
   .compliance-section h3 {{ margin-bottom: 8px; font-size: 12pt; }}

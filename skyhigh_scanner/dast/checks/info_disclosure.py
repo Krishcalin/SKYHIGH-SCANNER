@@ -14,6 +14,7 @@ Rule IDs: DAST-INFO-001 through DAST-INFO-012
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import TYPE_CHECKING
 
@@ -23,6 +24,8 @@ if TYPE_CHECKING:
     from ...core.credential_manager import CredentialManager
     from ..crawler import SiteMap
     from ..http_client import DastHTTPClient
+
+logger = logging.getLogger(__name__)
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -121,6 +124,7 @@ def _finding(
     description: str,
     recommendation: str,
     cwe: str | None = None,
+    evidence: list[dict] | None = None,
 ) -> Finding:
     return Finding(
         rule_id=rule_id,
@@ -134,6 +138,7 @@ def _finding(
         recommendation=recommendation,
         cwe=cwe,
         target_type="dast",
+        evidence=evidence,
     )
 
 
@@ -166,6 +171,13 @@ def _check_server_header(
                 "For Apache: ServerTokens Prod. For nginx: server_tokens off."
             ),
             cwe="CWE-200",
+            evidence=[{
+                "method": "HEAD",
+                "url": target_url,
+                "status": 200,
+                "payload": "(none — passive check)",
+                "proof": f"Server: {server}",
+            }],
         ))
 
 
@@ -206,7 +218,8 @@ def _check_sensitive_files(
         url = f"{base}/{path}"
         try:
             status, body = client.probe_path(target_url, path)
-        except Exception:
+        except Exception as exc:
+            logger.debug("Check %s failed for %s: %s", "DAST-INFO-003", path, exc)
             continue
         if status == 200 and re.search(indicator, body):
             severity = "CRITICAL" if path in (
@@ -229,6 +242,13 @@ def _check_sensitive_files(
                     "Configure the web server to block access to sensitive files."
                 ),
                 cwe="CWE-538",
+                evidence=[{
+                    "method": "GET",
+                    "url": url,
+                    "status": status,
+                    "payload": f"Probe: /{path}",
+                    "proof": body[:500],
+                }],
             ))
 
 
@@ -259,7 +279,8 @@ def _check_directory_listing(
             break
         try:
             status, body = client.probe_path(dir_url, "")
-        except Exception:
+        except Exception as exc:
+            logger.debug("Check %s failed for %s: %s", "DAST-INFO-004", dir_url, exc)
             continue
         checked += 1
         if status == 200 and re.search(
@@ -304,7 +325,8 @@ def _check_error_pages(
     for path in error_paths:
         try:
             status, body = client.probe_path(target_url, path)
-        except Exception:
+        except Exception as exc:
+            logger.debug("Check %s failed for %s: %s", "DAST-INFO-005", path, exc)
             continue
 
         for pattern, pattern_desc in DEBUG_PATTERNS:
@@ -328,6 +350,13 @@ def _check_error_pages(
                         "internal details. Disable debug mode in production."
                     ),
                     cwe="CWE-209",
+                    evidence=[{
+                        "method": "GET",
+                        "url": f"{base}/{path}",
+                        "status": status,
+                        "payload": f"Error path: /{path}",
+                        "proof": body[:500],
+                    }],
                 ))
 
 
@@ -339,7 +368,8 @@ def _check_internal_ips(
     """DAST-INFO-006: Internal IP addresses in response headers."""
     try:
         resp = client.get(target_url, capture_evidence=False)
-    except Exception:
+    except Exception as exc:
+        logger.debug("Check %s failed for %s: %s", "DAST-INFO-006", target_url, exc)
         return
 
     # Check all response headers
@@ -376,7 +406,8 @@ def _check_html_comments(
             break
         try:
             resp = client.get(url, capture_evidence=False)
-        except Exception:
+        except Exception as exc:
+            logger.debug("Check %s failed for %s: %s", "DAST-INFO-007", url, exc)
             continue
         checked += 1
 
@@ -419,7 +450,8 @@ def _check_email_disclosure(
             break
         try:
             resp = client.get(url, capture_evidence=False)
-        except Exception:
+        except Exception as exc:
+            logger.debug("Check %s failed for %s: %s", "DAST-INFO-008", url, exc)
             continue
         checked += 1
 

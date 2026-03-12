@@ -230,6 +230,15 @@ class ScannerBase(ABC):
                 print(f"    EPSS   : {f.epss * 100:.1f}%")
             if f.compliance:
                 print(f"    Compliance: {format_controls(f.compliance)}")
+            if f.evidence:
+                for ev in f.evidence:
+                    method = ev.get("method", "")
+                    ev_url = ev.get("url", "")
+                    ev_status = ev.get("status", "")
+                    ev_payload = ev.get("payload", "")
+                    print(f"    Evidence : {method} {ev_url} → {ev_status}")
+                    if ev_payload and ev_payload != "(none — passive check)":
+                        print(f"    Payload  : {ev_payload}")
 
         # Compliance summary
         if s.get("compliance_mapped"):
@@ -370,6 +379,8 @@ class ScannerBase(ABC):
                 props["fix_version"] = f.fix_version
             if f.compliance:
                 props["compliance"] = f.compliance
+            if f.evidence:
+                props["evidence"] = f.evidence
             if props:
                 result["properties"] = props
 
