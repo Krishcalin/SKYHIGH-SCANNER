@@ -12,8 +12,8 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="MIT License" /></a>
   <a href="#supported-platforms"><img src="https://img.shields.io/badge/platforms-23-orange.svg" alt="23 Platforms" /></a>
   <a href="#cve-database"><img src="https://img.shields.io/badge/CVEs-32%2C000+-red.svg" alt="32,000+ CVEs" /></a>
-  <a href="#features"><img src="https://img.shields.io/badge/rules-~800-purple.svg" alt="~800 Rules" /></a>
-  <a href="#testing"><img src="https://img.shields.io/badge/tests-913_passing-brightgreen.svg" alt="913 Tests" /></a>
+  <a href="#features"><img src="https://img.shields.io/badge/rules-~820-purple.svg" alt="~820 Rules" /></a>
+  <a href="#testing"><img src="https://img.shields.io/badge/tests-999_passing-brightgreen.svg" alt="999 Tests" /></a>
 </p>
 
 ---
@@ -48,7 +48,7 @@ Unlike static analysis tools, SkyHigh Scanner actively queries running systems �
 - **Active scanning** — Connects to live hosts via SSH, WinRM, Netmiko, SNMP, SMB, and HTTP
 - **DAST scanning** — Dynamic Application Security Testing with crawling, scope enforcement, and rate limiting
 - **Auto-discovery** — Scans IP ranges, fingerprints services, classifies hosts, and dispatches the right scanner
-- **~800 security rules** across 21 check modules
+- **~820 security rules** across 21 check modules + 11 DAST check categories
 - **32,000+ CVEs** via NVD API 2.0 sync (2010-2025) with CISA KEV + EPSS overlay
 - **510 bundled seed CVEs** with 159 CISA KEV entries for offline scanning
 - **6 CIS benchmarks** — Windows, Linux, Cisco, Oracle DB, MySQL, MongoDB
@@ -139,7 +139,8 @@ Unlike static analysis tools, SkyHigh Scanner actively queries running systems �
 | **Auth Modes** | None, Bearer token, Cookie, Basic auth, Form login |
 | **Passive Mode** | `--dast-passive-only` skips injection/XSS/file-inclusion checks |
 | **Safety Controls** | Pre-scan warning banner, `--dast-accept-risk` to suppress |
-| **Check Categories** | Injection, XSS, Auth/Session, Access Control, API Security, File Inclusion, Info Disclosure, Config/Misconfig |
+| **WAF Detection** | Pre-scan WAF fingerprinting: Cloudflare, AWS WAF, Imperva, Akamai, ModSecurity, F5, Sucuri, Barracuda |
+| **Check Categories** | Injection (12 rules), XSS (7 rules), Auth/Session, Access Control, API Security (11 rules), File Inclusion, Info Disclosure, Config/Misconfig, SSRF (4 rules), XXE (4 rules), JWT (5 rules) |
 
 ---
 
@@ -618,7 +619,7 @@ SKYHIGH-SCANNER/
 ├── .github/workflows/
 │   └── ci.yml                    # GitHub Actions CI (test, lint, seed validation)
 │
-├── tests/                        # Test suite (913 tests)
+├── tests/                        # Test suite (999 tests)
 │   ├── conftest.py               # Shared fixtures
 │   ├── test_version_utils.py     # Version parsing & range matching (20 tests)
 │   ├── test_ip_utils.py          # IP range expansion & DNS (16 tests)
@@ -644,7 +645,16 @@ SKYHIGH-SCANNER/
 │   ├── test_dast_discovery.py    # URL discovery, robots.txt, sitemap.xml (26 tests)
 │   ├── test_dast_evidence.py     # Evidence capture in check modules (43 tests)
 │   ├── test_dast_perf_safety.py  # Circuit breaker, retry, adaptive rate limiter (39 tests)
-│   └── test_dast_scanner.py      # DAST scanner orchestrator, concurrent dispatch (22 tests)
+│   ├── test_dast_scanner.py      # DAST scanner orchestrator, concurrent dispatch (22 tests)
+│   ├── test_dast_injection.py    # Injection checks: SQL, cmd, SSTI, CRLF, LDAP, HPP (21 tests)
+│   ├── test_dast_xss.py          # XSS checks: reflected, DOM, stored (20 tests)
+│   ├── test_dast_api_security.py # API security + GraphQL DoS (18 tests)
+│   ├── test_dast_ssrf.py         # SSRF detection (tests)
+│   ├── test_dast_xxe.py          # XXE injection (tests)
+│   ├── test_dast_jwt_security.py # JWT token analysis (10 tests)
+│   ├── test_dast_waf_detect.py   # WAF detection (6 tests)
+│   ├── test_dast_injection_blind.py # Blind injection (tests)
+│   └── test_dast_report_sections.py # DAST report sections (tests)
 │
 └── skyhigh_scanner/              # Main package
     ├── __init__.py               # VERSION = "1.0.0"
@@ -683,8 +693,20 @@ SKYHIGH-SCANNER/
     │   ├── http_client.py        # DastHTTPClient (scope + rate limiting + retries + evidence)
     │   ├── crawler.py            # WebCrawler, SiteMap, HTML parser, JS extraction
     │   ├── discovery.py          # URL discovery (robots.txt, sitemap.xml, common paths)
-    │   └── checks/               # Check modules (injection, xss, auth, etc.)
-    │       └── __init__.py       # Check module interface
+    │   ├── waf_detect.py          # WAF fingerprinting utility (8 WAFs)
+    │   └── checks/               # Check modules (82 DAST rules across 11 categories)
+    │       ├── __init__.py        # Check module interface
+    │       ├── injection.py       # SQL/cmd/SSTI/CRLF/host/NoSQL/XPath/blind/LDAP/HPP (12 rules)
+    │       ├── xss.py             # Reflected/DOM/header/error/stored XSS (7 rules)
+    │       ├── auth_session.py    # Auth & session checks
+    │       ├── access_control.py  # Access control checks
+    │       ├── api_security.py    # API security + GraphQL DoS (11 rules)
+    │       ├── file_inclusion.py  # LFI/RFI checks
+    │       ├── info_disclosure.py # Info disclosure checks
+    │       ├── config_misconfig.py# Configuration checks
+    │       ├── ssrf.py            # SSRF detection (4 rules)
+    │       ├── xxe.py             # XXE injection (4 rules)
+    │       └── jwt_security.py    # JWT token analysis (5 rules)
     │
     ├── webservers/               # Web server check modules
     │   ├── iis_checks.py, apache_checks.py, nginx_checks.py
@@ -768,9 +790,15 @@ pytest tests/test_seed_validation.py -v
 | DAST evidence | 43 | N/A (cross-module) |
 | DAST perf & safety | 39 | N/A (cross-module) |
 | DAST scanner | 22 | N/A (cross-module) |
+| DAST injection checks | 21 | N/A (cross-module) |
+| DAST XSS checks | 20 | N/A (cross-module) |
+| DAST API security | 18 | N/A (cross-module) |
+| DAST JWT security | 10 | N/A (cross-module) |
+| DAST WAF detection | 6 | N/A (cross-module) |
+| DAST SSRF/XXE/blind/reports | ~30 | N/A (cross-module) |
 | Seed file validation | 12 | N/A |
 | CLI argument parsing | 25 | N/A |
-| **Total** | **913** | |
+| **Total** | **999** | |
 
 ### CI Pipeline
 
@@ -802,7 +830,7 @@ Contributions are welcome! Here's how to get started:
 2. **Create** a feature branch: `git checkout -b feature/my-feature`
 3. **Install** dev dependencies: `pip install -r requirements-dev.txt`
 4. **Make** your changes
-5. **Run tests**: `pytest` -- all 913 tests must pass
+5. **Run tests**: `pytest` -- all 999 tests must pass
 6. **Lint**: `ruff check skyhigh_scanner/ tests/`
 7. **Commit**: `git commit -m "Add my feature"`
 8. **Push**: `git push origin feature/my-feature`

@@ -49,8 +49,20 @@ skyhigh_scanner/
 │   ├── http_client.py          # DastHTTPClient (scope + rate + retries + circuit breaker + evidence)
 │   ├── crawler.py              # WebCrawler, SiteMap, _LinkFormParser, JS extraction
 │   ├── discovery.py            # URL discovery (robots.txt, sitemap.xml, common paths)
-│   └── checks/                 # Check modules (injection, xss, auth, etc.)
-│       └── __init__.py         # Check module interface
+│   ├── waf_detect.py           # WAF fingerprinting utility (8 WAFs)
+│   └── checks/                 # Check modules (82 DAST rules across 11 categories)
+│       ├── __init__.py         # Check module interface
+│       ├── injection.py        # SQL/cmd/SSTI/CRLF/host/NoSQL/XPath/blind/LDAP/HPP (12 rules)
+│       ├── xss.py              # Reflected/DOM/header/error/stored XSS (7 rules)
+│       ├── auth_session.py     # Auth & session checks
+│       ├── access_control.py   # Access control checks
+│       ├── api_security.py     # API security + GraphQL DoS (11 rules)
+│       ├── file_inclusion.py   # LFI/RFI checks
+│       ├── info_disclosure.py  # Info disclosure checks
+│       ├── config_misconfig.py # Configuration checks
+│       ├── ssrf.py             # SSRF detection (4 rules)
+│       ├── xxe.py              # XXE injection (4 rules)
+│       └── jwt_security.py     # JWT token analysis (5 rules)
 ├── webservers/          # Web server check modules
 │   ├── apache_checks.py        # APACHE_CVES (13), ServerTokens, dir listing
 │   ├── iis_checks.py           # IIS_CVE_VERSIONS (10), headers, WebDAV
@@ -77,7 +89,7 @@ skyhigh_scanner/
 │   └── example_scanner.py      # Example plugin template
 └── templates/           # HTML report templates
 
-tests/                   # 913 pytest tests (all passing, 0 skipped)
+tests/                   # 999 pytest tests (all passing, 0 skipped)
 ├── conftest.py                # Shared fixtures
 ├── test_version_utils.py      # 20 tests
 ├── test_ip_utils.py           # 16 tests
@@ -103,7 +115,16 @@ tests/                   # 913 pytest tests (all passing, 0 skipped)
 ├── test_dast_discovery.py     # 26 tests (URL discovery, robots.txt, sitemap.xml)
 ├── test_dast_evidence.py      # 43 tests (evidence capture in check modules)
 ├── test_dast_perf_safety.py   # 39 tests (circuit breaker, retry, adaptive rate limiter)
-└── test_dast_scanner.py       # 22 tests (DAST scanner orchestrator, concurrent dispatch, CLI)
+├── test_dast_scanner.py       # 22 tests (DAST scanner orchestrator, concurrent dispatch, CLI)
+├── test_dast_injection.py     # 21 tests (SQL, cmd, SSTI, CRLF, LDAP, HPP injection checks)
+├── test_dast_xss.py           # 20 tests (reflected, DOM, header, error, stored XSS)
+├── test_dast_api_security.py  # 18 tests (API security + GraphQL DoS)
+├── test_dast_jwt_security.py  # 10 tests (JWT alg confusion, sig strip, expired, tampering, weak secret)
+├── test_dast_waf_detect.py    # 6 tests (WAF fingerprinting)
+├── test_dast_ssrf.py          # SSRF detection tests
+├── test_dast_xxe.py           # XXE injection tests
+├── test_dast_injection_blind.py  # Blind SQL/command injection tests
+└── test_dast_report_sections.py  # DAST report section tests
 ```
 
 ### CLI Commands
@@ -133,9 +154,11 @@ python -m skyhigh_scanner epss-sync                         # Update EPSS scores
 - **CPE_QUERIES**: Dict in `cve_sync.py` mapping platform keys to CPE 2.3 strings (49 entries)
 - **Rule ID formats**: `WEB-APACHE-001`, `CISCO-AUTH-001`, `DB-MONGO-NET-001`, `MW-JAVA-VER-001`, `DAST-INJ-001`
 - **DAST safety controls**: ScopePolicy (mandatory host allowlist), RateLimiter (adaptive token bucket), RequestCounter (hard cap), CircuitBreaker (threshold/reset), warning banner
-- **DAST check dispatch**: 8 categories via ThreadPoolExecutor(4 workers) — injection, xss, auth_session, access_control, api_security, file_inclusion, info_disclosure, config_misconfig
+- **DAST check dispatch**: 11 categories via ThreadPoolExecutor(4 workers) — injection, xss, auth_session, access_control, api_security, file_inclusion, info_disclosure, config_misconfig, ssrf, xxe, jwt
+- **DAST rule count**: 82 rules across 11 check modules (DAST-INJ-001–012, DAST-XSS-001–007, DAST-API-001–011, DAST-SSRF-001–004, DAST-XXE-001–004, DAST-JWT-001–005, plus auth/access/file/info/config checks)
+- **DAST WAF detection**: Pre-scan fingerprinting for 8 WAFs (Cloudflare, AWS WAF, Imperva, Akamai, ModSecurity, F5, Sucuri, Barracuda) via header/cookie/block-probe analysis
 - **DAST auth modes**: none, bearer, cookie, basic, form — configured via DastConfig
-- **DAST passive mode**: Skips injection, xss, file_inclusion, access_control checks
+- **DAST passive mode**: Skips injection, xss, file_inclusion, access_control, jwt checks
 - **DAST retries**: Exponential backoff on 5xx/ConnectionError/Timeout, configurable max_retries
 - **DAST evidence**: RequestEvidence dataclass with method/url/status/headers/body/response_time, attached to findings
 - **DAST perf metrics**: avg_response_time_ms and p95_response_time_ms tracked and included in summary
@@ -332,11 +355,35 @@ python -m skyhigh_scanner epss-sync                         # Update EPSS scores
 - **39 new tests** in `test_dast_perf_safety.py` + 12 new tests in `test_dast_config.py` + 4 new in `test_dast_scanner.py`
 - **913 tests all passing, 0 skipped**
 
+### DAST Phase 7 — High-Priority Checks (commit `aeded82`)
+- **SSRF detection** (`checks/ssrf.py`): 4 rules (DAST-SSRF-001 to 004) — URL param, form input, blind callback, header injection
+- **XXE injection** (`checks/xxe.py`): 4 rules (DAST-XXE-001 to 004) — form/upload, content-type, parameter, error-based
+- **Blind injection** (in `checks/injection.py`): 2 rules (DAST-INJ-009/010) — blind SQLi (time-based), blind command injection
+- **Report sections** (in `core/reporting.py`): DAST summary sections in HTML/JSON reports
+- **Rule count**: 60 → 70 DAST rules
+
+### DAST Phase 8 — Medium-Priority Improvements (commit `aeded82`)
+- **JWT token analysis** (`checks/jwt_security.py`): 5 rules (DAST-JWT-001 to 005)
+  - Algorithm confusion (alg:none), signature stripping, expired token acceptance, claim tampering, weak signing secret
+  - Uses stdlib only (no PyJWT): base64url, json, hmac for offline secret brute-force
+- **WAF detection** (`dast/waf_detect.py`): Pre-scan utility fingerprinting 8 WAFs via headers, cookies, and block-probe responses
+  - Cloudflare, AWS WAF, Imperva/Incapsula, Akamai, ModSecurity, F5 BIG-IP, Sucuri, Barracuda
+  - `WAFInfo` dataclass with detected, name, confidence, evidence fields
+  - Called from `dast_scanner.py` between crawl and check dispatch
+- **Stored XSS** (in `checks/xss.py`): 2 rules (DAST-XSS-006/007) — multi-phase inject-then-verify with unique canaries (`SKYHIGH_STORED_{sha256[:8]}`)
+- **LDAP injection** (in `checks/injection.py`): 1 rule (DAST-INJ-011, CWE-90) — error pattern + wildcard length anomaly detection
+- **HTTP Parameter Pollution** (in `checks/injection.py`): 1 rule (DAST-INJ-012, CWE-235) — duplicate param bypass detection
+- **GraphQL DoS** (in `checks/api_security.py`): 3 rules (DAST-API-009 to 011, CWE-400) — query batching, field aliasing, deep nesting
+- **CHECK_DISPATCH**: Expanded from 8 to 11 categories (added ssrf, xxe, jwt)
+- **Passive mode skip set**: Now includes jwt alongside injection, xss, file_inclusion, access_control
+- **Rule count**: 70 → 82 DAST rules
+- **999 tests all passing, 0 skipped**
+
 ## Testing
 ```bash
 pip install -r requirements-dev.txt    # pytest, pytest-cov, ruff, mypy
 pip install requests                    # Required for EPSS/sync tests
-pytest                                  # Run all 913 tests
+pytest                                  # Run all 999 tests
 pytest --cov=skyhigh_scanner.core       # With coverage
 pytest tests/test_seed_validation.py    # Seed integrity only
 ruff check skyhigh_scanner/ tests/      # Lint
@@ -370,6 +417,15 @@ ruff check skyhigh_scanner/ tests/      # Lint
 | `tests/test_dast_evidence.py` | 43 | Evidence capture in all 8 check modules |
 | `tests/test_dast_perf_safety.py` | 39 | Circuit breaker, retry logic, adaptive rate limiter, response time |
 | `tests/test_dast_scanner.py` | 22 | DastScanner init, concurrent dispatch, perf metrics, CLI parsing |
+| `tests/test_dast_injection.py` | 21 | SQL, cmd, SSTI, CRLF, host, NoSQL, XPath, LDAP, HPP injection |
+| `tests/test_dast_xss.py` | 20 | Reflected, DOM, header, error, stored XSS detection |
+| `tests/test_dast_api_security.py` | 18 | API security, GraphQL introspection/batch/alias/nesting DoS |
+| `tests/test_dast_jwt_security.py` | 10 | JWT collection, alg none, sig strip, expired, tampering, weak secret |
+| `tests/test_dast_waf_detect.py` | 6 | WAF fingerprinting (Cloudflare, AWS, ModSecurity, Imperva, Sucuri) |
+| `tests/test_dast_ssrf.py` | — | SSRF detection checks |
+| `tests/test_dast_xxe.py` | — | XXE injection checks |
+| `tests/test_dast_injection_blind.py` | — | Blind SQL/command injection |
+| `tests/test_dast_report_sections.py` | — | DAST HTML/JSON report sections |
 
 ### CI Pipeline (`.github/workflows/ci.yml`)
 - **test**: Matrix Python 3.9, 3.10, 3.11, 3.12 — `pytest --cov`
