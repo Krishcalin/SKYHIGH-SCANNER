@@ -39,7 +39,7 @@
 
 ## Overview
 
-**Vulnerability Management Scanner** is an open-source active vulnerability scanner inspired by enterprise tools like Tenable Nessus and Rapid7 InsightVM. It connects to live hosts over SSH, WinRM, SNMP, and HTTP to perform authenticated security assessments, CIS benchmark checks, and CVE detection across 23 platforms.
+**Vulnerability Management Scanner** is an open-source active vulnerability scanner. It connects to live hosts over SSH, WinRM, SNMP, and HTTP to perform authenticated security assessments, CIS benchmark checks, and CVE detection across 23 platforms.
 
 Unlike static analysis tools, Vulnerability Management Scanner actively queries running systems — reading configurations, checking installed software versions, probing services, and correlating findings against a local CVE database seeded from the NVD and CISA KEV feeds.
 
