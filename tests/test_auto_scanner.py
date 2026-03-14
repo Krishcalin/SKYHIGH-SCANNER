@@ -1,8 +1,8 @@
 """Tests for the auto scanner and discovery enhancements."""
 
 
-from skyhigh_scanner.core.credential_manager import CredentialManager
-from skyhigh_scanner.core.discovery import (
+from vulnerability_management.core.credential_manager import CredentialManager
+from vulnerability_management.core.discovery import (
     HostInfo,
     NetworkDiscovery,
     ServiceInfo,
@@ -10,7 +10,7 @@ from skyhigh_scanner.core.discovery import (
     _resolve_os,
     guess_os_from_ttl,
 )
-from skyhigh_scanner.scanners.auto_scanner import _CRED_REQUIREMENTS, AutoScanner
+from vulnerability_management.scanners.auto_scanner import _CRED_REQUIREMENTS, AutoScanner
 
 # ── TTL fingerprinting ───────────────────────────────────────────────
 
@@ -299,7 +299,7 @@ class TestAutoScannerInit:
         assert s.profile.name == "standard"
 
     def test_custom_profile(self):
-        from skyhigh_scanner.core.scan_profiles import get_profile
+        from vulnerability_management.core.scan_profiles import get_profile
         creds = CredentialManager()
         p = get_profile("quick")
         s = AutoScanner(target="10.0.0.1", credentials=creds, profile=p)
@@ -377,7 +377,7 @@ class TestAutoScannerSummary:
         assert summary["skipped_scans"] == {}
 
     def test_summary_profile(self):
-        from skyhigh_scanner.core.scan_profiles import get_profile
+        from vulnerability_management.core.scan_profiles import get_profile
         creds = CredentialManager()
         p = get_profile("full")
         s = AutoScanner(target="10.0.0.1", credentials=creds, profile=p)

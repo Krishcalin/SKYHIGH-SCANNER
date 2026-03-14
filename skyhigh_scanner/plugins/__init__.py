@@ -1,8 +1,0 @@
-"""SkyHigh Scanner — Plugin modules.
-
-Place custom scanner plugins here. Any ``.py`` file (except those starting
-with ``_``) will be auto-discovered and loaded at startup.
-
-See ``skyhigh_scanner.core.plugin_registry`` for the ``@scanner_plugin``
-decorator and plugin development guide.
-"""

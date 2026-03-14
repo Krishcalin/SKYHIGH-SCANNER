@@ -4,7 +4,7 @@ from argparse import Namespace
 
 import pytest
 
-from skyhigh_scanner.core.config import (
+from vulnerability_management.core.config import (
     _VALID_KEYS,
     _parse_simple_yaml,
     find_config,
@@ -82,14 +82,14 @@ class TestFindConfig:
 
     def test_finds_in_cwd(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
-        f = tmp_path / "skyhigh-scanner.yml"
+        f = tmp_path / "vulnerability-management.yml"
         f.write_text("timeout: 30")
         assert find_config() == f
 
     def test_prefers_yml_over_toml(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
-        (tmp_path / "skyhigh-scanner.yml").write_text("timeout: 30")
-        (tmp_path / "skyhigh-scanner.toml").write_text("timeout = 30")
+        (tmp_path / "vulnerability-management.yml").write_text("timeout: 30")
+        (tmp_path / "vulnerability-management.toml").write_text("timeout = 30")
         result = find_config()
         assert result.suffix == ".yml"
 

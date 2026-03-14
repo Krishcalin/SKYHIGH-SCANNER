@@ -9,8 +9,8 @@ from pathlib import Path
 
 import pytest
 
-SEED_DIR = Path(__file__).parent.parent / "skyhigh_scanner" / "cve_data" / "seed"
-BENCHMARK_DIR = Path(__file__).parent.parent / "skyhigh_scanner" / "benchmarks"
+SEED_DIR = Path(__file__).parent.parent / "vulnerability_management" / "cve_data" / "seed"
+BENCHMARK_DIR = Path(__file__).parent.parent / "vulnerability_management" / "benchmarks"
 
 REQUIRED_CVE_FIELDS = {"cve_id", "platform", "severity", "published", "name"}
 VALID_SEVERITIES = {"CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"}

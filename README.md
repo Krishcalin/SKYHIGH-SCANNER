@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="banner.svg" alt="SkyHigh Scanner Banner" width="100%" />
+  <img src="banner.svg" alt="Vulnerability Management Scanner Banner" width="100%" />
 </p>
 
 <p align="center">
@@ -39,9 +39,9 @@
 
 ## Overview
 
-**SkyHigh Scanner** is an open-source active vulnerability scanner inspired by enterprise tools like Tenable Nessus and Rapid7 InsightVM. It connects to live hosts over SSH, WinRM, SNMP, and HTTP to perform authenticated security assessments, CIS benchmark checks, and CVE detection across 23 platforms.
+**Vulnerability Management Scanner** is an open-source active vulnerability scanner inspired by enterprise tools like Tenable Nessus and Rapid7 InsightVM. It connects to live hosts over SSH, WinRM, SNMP, and HTTP to perform authenticated security assessments, CIS benchmark checks, and CVE detection across 23 platforms.
 
-Unlike static analysis tools, SkyHigh Scanner actively queries running systems — reading configurations, checking installed software versions, probing services, and correlating findings against a local CVE database seeded from the NVD and CISA KEV feeds.
+Unlike static analysis tools, Vulnerability Management Scanner actively queries running systems — reading configurations, checking installed software versions, probing services, and correlating findings against a local CVE database seeded from the NVD and CISA KEV feeds.
 
 ### Key Highlights
 
@@ -207,8 +207,8 @@ Unlike static analysis tools, SkyHigh Scanner actively queries running systems �
 ### Install from Source
 
 ```bash
-git clone https://github.com/Krishcalin/SKYHIGH-SCANNER.git
-cd SKYHIGH-SCANNER
+git clone https://github.com/Krishcalin/Vulnerability-Management.git
+cd Vulnerability-Management
 pip install -e .
 ```
 
@@ -254,7 +254,7 @@ pip install -r requirements.txt
 ### 1. Import Seed CVE Data
 
 ```bash
-python -m skyhigh_scanner cve-import
+python -m vulnerability_management cve-import
 ```
 
 This loads 510 curated CVEs (159 CISA KEV flagged) from the bundled seed files.
@@ -262,51 +262,51 @@ This loads 510 curated CVEs (159 CISA KEV flagged) from the bundled seed files.
 ### 2. Check CVE Database Stats
 
 ```bash
-python -m skyhigh_scanner cve-stats
+python -m vulnerability_management cve-stats
 ```
 
 ### 3. Run a Scan
 
 ```bash
 # Auto-discover and scan a subnet
-python -m skyhigh_scanner auto -r 192.168.1.0/24 -u admin -p secret
+python -m vulnerability_management auto -r 192.168.1.0/24 -u admin -p secret
 
 # Scan a specific Linux host
-python -m skyhigh_scanner linux -t 10.0.1.50 -u root -p password
+python -m vulnerability_management linux -t 10.0.1.50 -u root -p password
 
 # Scan a Windows host
-python -m skyhigh_scanner windows -t 10.0.1.100 -u administrator -p password
+python -m vulnerability_management windows -t 10.0.1.100 -u administrator -p password
 
 # Scan Cisco devices
-python -m skyhigh_scanner cisco -r 10.0.1.0/24 -u admin -p secret --enable-password enable123
+python -m vulnerability_management cisco -r 10.0.1.0/24 -u admin -p secret --enable-password enable123
 
 # Scan a web server
-python -m skyhigh_scanner webserver -t https://example.com
+python -m vulnerability_management webserver -t https://example.com
 
 # Scan middleware on a host
-python -m skyhigh_scanner middleware -t 10.0.1.50 -u admin -p secret
+python -m vulnerability_management middleware -t 10.0.1.50 -u admin -p secret
 
 # Scan databases on a host
-python -m skyhigh_scanner database -t 10.0.1.50
+python -m vulnerability_management database -t 10.0.1.50
 
 # DAST scan a web application
-python -m skyhigh_scanner dast --target https://app.example.com --dast-accept-risk
+python -m vulnerability_management dast --target https://app.example.com --dast-accept-risk
 ```
 
 ### 4. Generate Reports
 
 ```bash
 # JSON output
-python -m skyhigh_scanner linux -t 10.0.1.50 -u root -p pass --json report.json
+python -m vulnerability_management linux -t 10.0.1.50 -u root -p pass --json report.json
 
 # HTML report
-python -m skyhigh_scanner linux -t 10.0.1.50 -u root -p pass --html report.html
+python -m vulnerability_management linux -t 10.0.1.50 -u root -p pass --html report.html
 
 # Filter by severity
-python -m skyhigh_scanner linux -t 10.0.1.50 -u root -p pass --severity HIGH
+python -m vulnerability_management linux -t 10.0.1.50 -u root -p pass --severity HIGH
 
 # Verbose output
-python -m skyhigh_scanner linux -t 10.0.1.50 -u root -p pass -v
+python -m vulnerability_management linux -t 10.0.1.50 -u root -p pass -v
 ```
 
 ---
@@ -314,7 +314,7 @@ python -m skyhigh_scanner linux -t 10.0.1.50 -u root -p pass -v
 ## CLI Reference
 
 ```
-usage: python -m skyhigh_scanner <command> [options]
+usage: python -m vulnerability_management <command> [options]
 
 Commands:
   auto          Auto-discover hosts and run appropriate scanners
@@ -341,7 +341,7 @@ Commands:
 | `-p, --password` | Authentication password |
 | `--severity` | Minimum severity filter: `CRITICAL`, `HIGH`, `MEDIUM`, `LOW`, `INFO` |
 | `--profile` | Scan profile: `quick`, `standard`, `full`, `compliance`, `cve-only` |
-| `--config FILE` | YAML/TOML config file (auto-discovers `skyhigh-scanner.yml` if omitted) |
+| `--config FILE` | YAML/TOML config file (auto-discovers `vulnerability-management.yml` if omitted) |
 | `--baseline FILE` | Compare against previous JSON scan for diff reporting |
 | `--threads N` | Number of parallel scan threads (default: 4) |
 | `--compliance` | Enrich findings with compliance framework mappings |
@@ -357,20 +357,20 @@ Commands:
 
 ```bash
 # Basic DAST scan
-python -m skyhigh_scanner dast --target https://app.example.com
+python -m vulnerability_management dast --target https://app.example.com
 
 # Passive-only mode (no injection payloads)
-python -m skyhigh_scanner dast --target https://app.example.com --dast-passive-only
+python -m vulnerability_management dast --target https://app.example.com --dast-passive-only
 
 # Custom rate limit and auth
-python -m skyhigh_scanner dast --target https://app.example.com \
+python -m vulnerability_management dast --target https://app.example.com \
   --dast-rate-limit 20 --dast-auth-mode bearer --dast-auth-token mytoken
 
 # Skip crawling (test seed URL only)
-python -m skyhigh_scanner dast --target https://app.example.com --dast-no-crawl
+python -m vulnerability_management dast --target https://app.example.com --dast-no-crawl
 
 # Accept risk (suppress warning banner)
-python -m skyhigh_scanner dast --target https://app.example.com --dast-accept-risk
+python -m vulnerability_management dast --target https://app.example.com --dast-accept-risk
 ```
 
 | Flag | Default | Description |
@@ -390,7 +390,7 @@ python -m skyhigh_scanner dast --target https://app.example.com --dast-accept-ri
 | `--dast-request-timeout N` | 15 | Per-request timeout in seconds |
 | `--dast-verify-ssl` | false | Verify SSL certificates |
 | `--dast-max-pages N` | 500 | Maximum pages to crawl |
-| `--dast-user-agent STR` | SkyHigh-DAST/1.0 | Custom User-Agent header |
+| `--dast-user-agent STR` | VulnMgmt-DAST/1.0 | Custom User-Agent header |
 | `--dast-proxy URL` | — | HTTP proxy (e.g. `http://127.0.0.1:8080`) |
 | `--dast-retries N` | 3 | Max retries per request on failure |
 
@@ -398,22 +398,22 @@ python -m skyhigh_scanner dast --target https://app.example.com --dast-accept-ri
 
 ```bash
 # Full sync from NVD (2010-2025, ~32,000 CVEs)
-python -m skyhigh_scanner cve-sync --api-key YOUR_NVD_API_KEY
+python -m vulnerability_management cve-sync --api-key YOUR_NVD_API_KEY
 
 # Sync from a specific year
-python -m skyhigh_scanner cve-sync --api-key YOUR_NVD_API_KEY --since 2020
+python -m vulnerability_management cve-sync --api-key YOUR_NVD_API_KEY --since 2020
 
 # Incremental sync (only CVEs modified since last sync)
-python -m skyhigh_scanner cve-sync --incremental --api-key YOUR_NVD_API_KEY
+python -m vulnerability_management cve-sync --incremental --api-key YOUR_NVD_API_KEY
 
 # Sync specific platforms only
-python -m skyhigh_scanner cve-sync --platform nginx tomcat apache_httpd
+python -m vulnerability_management cve-sync --platform nginx tomcat apache_httpd
 
 # Combine: incremental sync for specific platforms
-python -m skyhigh_scanner cve-sync --incremental --platform openssl openssh
+python -m vulnerability_management cve-sync --incremental --platform openssl openssh
 
 # Sync without API key (slower, 6s rate limit)
-python -m skyhigh_scanner cve-sync
+python -m vulnerability_management cve-sync
 ```
 
 > Get a free NVD API key at https://nvd.nist.gov/developers/request-an-api-key to increase sync speed (0.6s vs 6s between requests).
@@ -424,10 +424,10 @@ python -m skyhigh_scanner cve-sync
 
 ```bash
 # Update EPSS scores for all CVEs in the database
-python -m skyhigh_scanner epss-sync
+python -m vulnerability_management epss-sync
 
 # With verbose output
-python -m skyhigh_scanner epss-sync -v
+python -m vulnerability_management epss-sync -v
 ```
 
 EPSS (Exploit Prediction Scoring System) scores are fetched from the FIRST.org API and indicate the probability that a CVE will be exploited in the wild within 30 days. Scores are shown in reports as color-coded badges:
@@ -443,19 +443,19 @@ Instead of passing credentials on the command line, set environment variables:
 
 | Variable | Purpose |
 |----------|---------|
-| `SKYHIGH_SSH_USERNAME` | SSH username for Linux scanning |
-| `SKYHIGH_SSH_PASSWORD` | SSH password |
-| `SKYHIGH_WINRM_USERNAME` | WinRM username for Windows scanning |
-| `SKYHIGH_WINRM_PASSWORD` | WinRM password |
-| `SKYHIGH_SNMP_COMMUNITY` | SNMP community string |
-| `SKYHIGH_ENABLE_PASSWORD` | Cisco enable password |
+| `VULNMGMT_SSH_USERNAME` | SSH username for Linux scanning |
+| `VULNMGMT_SSH_PASSWORD` | SSH password |
+| `VULNMGMT_WINRM_USERNAME` | WinRM username for Windows scanning |
+| `VULNMGMT_WINRM_PASSWORD` | WinRM password |
+| `VULNMGMT_SNMP_COMMUNITY` | SNMP community string |
+| `VULNMGMT_ENABLE_PASSWORD` | Cisco enable password |
 | `NVD_API_KEY` | NVD API key for CVE sync |
 
 ---
 
 ## CVE Database
 
-SkyHigh Scanner maintains a local SQLite database of CVEs for offline version-based vulnerability matching.
+Vulnerability Management Scanner maintains a local SQLite database of CVEs for offline version-based vulnerability matching.
 
 ### Database Schema
 
@@ -523,7 +523,7 @@ The scanner syncs CVEs for 47 CPE (Common Platform Enumeration) strings covering
 
 ## Compliance Framework Mapping
 
-SkyHigh Scanner maps findings to four major compliance frameworks, enabling audit-ready reports:
+Vulnerability Management Scanner maps findings to four major compliance frameworks, enabling audit-ready reports:
 
 | Framework | Standard | Controls Mapped |
 |-----------|----------|-----------------|
@@ -540,10 +540,10 @@ SkyHigh Scanner maps findings to four major compliance frameworks, enabling audi
 
 ```bash
 # Scan with compliance mapping
-python -m skyhigh_scanner linux -r 10.0.0.0/24 --compliance
+python -m vulnerability_management linux -r 10.0.0.0/24 --compliance
 
 # Compliance tags appear in all output formats
-python -m skyhigh_scanner cisco -r 10.1.1.0/24 --compliance --html report.html --csv report.csv
+python -m vulnerability_management cisco -r 10.1.1.0/24 --compliance --html report.html --csv report.csv
 ```
 
 ### Output
@@ -559,7 +559,7 @@ python -m skyhigh_scanner cisco -r 10.1.1.0/24 --compliance --html report.html -
 
 ### Interactive HTML Reports
 
-SkyHigh Scanner generates interactive HTML reports with:
+Vulnerability Management Scanner generates interactive HTML reports with:
 
 - **Dark theme** with platform-specific accent colors
 - **Chart.js dashboard** -- Severity doughnut, EPSS distribution, category bar, top targets bar charts
@@ -593,10 +593,10 @@ Compare scans against a previous baseline to track remediation progress:
 
 ```bash
 # Create a baseline
-python -m skyhigh_scanner linux -r 10.0.0.0/24 --json baseline.json
+python -m vulnerability_management linux -r 10.0.0.0/24 --json baseline.json
 
 # Compare against baseline
-python -m skyhigh_scanner linux -r 10.0.0.0/24 --baseline baseline.json
+python -m vulnerability_management linux -r 10.0.0.0/24 --baseline baseline.json
 ```
 
 Output shows NEW findings (not in baseline), FIXED findings (resolved), and UNCHANGED findings.
@@ -606,7 +606,7 @@ Output shows NEW findings (not in baseline), FIXED findings (resolved), and UNCH
 ## Project Structure
 
 ```
-SKYHIGH-SCANNER/
+Vulnerability-Management/
 ├── banner.svg                    # Project banner
 ├── LICENSE                       # MIT License
 ├── README.md                     # This file
@@ -656,7 +656,7 @@ SKYHIGH-SCANNER/
 │   ├── test_dast_injection_blind.py # Blind injection (tests)
 │   └── test_dast_report_sections.py # DAST report sections (tests)
 │
-└── skyhigh_scanner/              # Main package
+└── vulnerability_management/              # Main package
     ├── __init__.py               # VERSION = "1.0.0"
     ├── __main__.py               # CLI entry point (argparse)
     │
@@ -742,7 +742,7 @@ SKYHIGH-SCANNER/
 
 ## Testing
 
-SkyHigh Scanner has a comprehensive test suite covering all core modules.
+Vulnerability Management Scanner has a comprehensive test suite covering all core modules.
 
 ### Running Tests
 
@@ -754,7 +754,7 @@ pip install -r requirements-dev.txt
 pytest
 
 # Run with coverage report
-pytest --cov=skyhigh_scanner --cov-report=term-missing
+pytest --cov=vulnerability_management --cov-report=term-missing
 
 # Run a specific test file
 pytest tests/test_version_utils.py
@@ -831,7 +831,7 @@ Contributions are welcome! Here's how to get started:
 3. **Install** dev dependencies: `pip install -r requirements-dev.txt`
 4. **Make** your changes
 5. **Run tests**: `pytest` -- all 999 tests must pass
-6. **Lint**: `ruff check skyhigh_scanner/ tests/`
+6. **Lint**: `ruff check vulnerability_management/ tests/`
 7. **Commit**: `git commit -m "Add my feature"`
 8. **Push**: `git push origin feature/my-feature`
 9. **Open** a Pull Request
@@ -849,7 +849,7 @@ Contributions are welcome! Here's how to get started:
 
 1. Create or update a JSON file in `cve_data/seed/`
 2. Follow the existing format: `{ "cves": [ { "cve_id": "...", "description": "...", ... } ] }`
-3. Run `python -m skyhigh_scanner cve-import` to load the data
+3. Run `python -m vulnerability_management cve-import` to load the data
 
 ---
 

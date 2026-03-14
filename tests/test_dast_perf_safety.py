@@ -17,14 +17,14 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from skyhigh_scanner.dast.config import (
+from vulnerability_management.dast.config import (
     CircuitBreaker,
     CircuitBreakerOpen,
     DastConfig,
     RateLimiter,
     ScopePolicy,
 )
-from skyhigh_scanner.dast.http_client import DastHTTPClient
+from vulnerability_management.dast.http_client import DastHTTPClient
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # CircuitBreaker
@@ -161,7 +161,7 @@ class TestDastConfigNewFields:
     def test_defaults(self):
         config = DastConfig()
         assert config.verify_ssl is False
-        assert config.user_agent == "SkyHigh-DAST/1.0"
+        assert config.user_agent == "VulnMgmt-DAST/1.0"
         assert config.proxy is None
         assert config.max_pages == 500
         assert config.max_retries == 3
@@ -267,7 +267,7 @@ class TestRetryLogic:
         with patch.object(
             client._session, "request",
             side_effect=[fail_resp, ok_resp],
-        ) as m, patch("skyhigh_scanner.dast.http_client.time.sleep"):
+        ) as m, patch("vulnerability_management.dast.http_client.time.sleep"):
             resp = client.request("GET", "https://example.com/flaky")
 
         assert resp.status_code == 200
@@ -280,7 +280,7 @@ class TestRetryLogic:
         with patch.object(
             client._session, "request",
             return_value=fail_resp,
-        ) as m, patch("skyhigh_scanner.dast.http_client.time.sleep"):
+        ) as m, patch("vulnerability_management.dast.http_client.time.sleep"):
             # Should return the 500 response after exhausting retries
             resp = client.request("GET", "https://example.com/down")
 
@@ -295,7 +295,7 @@ class TestRetryLogic:
         with patch.object(
             client._session, "request",
             side_effect=[req.ConnectionError("refused"), ok_resp],
-        ) as m, patch("skyhigh_scanner.dast.http_client.time.sleep"):
+        ) as m, patch("vulnerability_management.dast.http_client.time.sleep"):
             resp = client.request("GET", "https://example.com/retry")
 
         assert resp.status_code == 200
@@ -309,7 +309,7 @@ class TestRetryLogic:
         with patch.object(
             client._session, "request",
             side_effect=[req.Timeout("timed out"), ok_resp],
-        ) as m, patch("skyhigh_scanner.dast.http_client.time.sleep"):
+        ) as m, patch("vulnerability_management.dast.http_client.time.sleep"):
             resp = client.request("GET", "https://example.com/slow")
 
         assert resp.status_code == 200
@@ -322,7 +322,7 @@ class TestRetryLogic:
         with patch.object(
             client._session, "request",
             side_effect=req.ConnectionError("refused"),
-        ), patch("skyhigh_scanner.dast.http_client.time.sleep"), pytest.raises(req.ConnectionError):
+        ), patch("vulnerability_management.dast.http_client.time.sleep"), pytest.raises(req.ConnectionError):
             client.request("GET", "https://example.com/dead")
 
 
@@ -425,7 +425,7 @@ class TestClientConfig:
 
 class TestDastCLINewArgs:
     def test_new_args_parse(self):
-        from skyhigh_scanner.__main__ import _build_parser
+        from vulnerability_management.__main__ import _build_parser
         parser = _build_parser()
         args = parser.parse_args([
             "dast", "--target", "https://example.com",
@@ -444,7 +444,7 @@ class TestDastCLINewArgs:
         assert args.dast_retries == 5
 
     def test_new_args_defaults(self):
-        from skyhigh_scanner.__main__ import _build_parser
+        from vulnerability_management.__main__ import _build_parser
         parser = _build_parser()
         args = parser.parse_args([
             "dast", "--target", "https://example.com",
@@ -452,6 +452,6 @@ class TestDastCLINewArgs:
         assert args.dast_request_timeout == 15
         assert args.dast_verify_ssl is False
         assert args.dast_max_pages == 500
-        assert args.dast_user_agent == "SkyHigh-DAST/1.0"
+        assert args.dast_user_agent == "VulnMgmt-DAST/1.0"
         assert args.dast_proxy is None
         assert args.dast_retries == 3

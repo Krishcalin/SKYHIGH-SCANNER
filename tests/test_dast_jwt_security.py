@@ -8,11 +8,11 @@ import hmac
 import json
 from unittest.mock import MagicMock
 
-from skyhigh_scanner.dast.checks.jwt_security import (
+from vulnerability_management.dast.checks.jwt_security import (
     _collect_jwts,
     run_checks,
 )
-from skyhigh_scanner.dast.crawler import APIEndpoint, SiteMap
+from vulnerability_management.dast.crawler import APIEndpoint, SiteMap
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Helpers

@@ -1,17 +1,17 @@
-"""SkyHigh Scanner — setup.py for pip installation."""
+"""Vulnerability Management Scanner — setup.py for pip installation."""
 
 from setuptools import find_packages, setup
 
 setup(
-    name="skyhigh-scanner",
+    name="vulnerability-management",
     version="1.0.0",
     description="Comprehensive Active Vulnerability Scanner",
-    author="SkyHigh Security",
+    author="Vulnerability Management",
     packages=find_packages(),
     python_requires=">=3.9",
     entry_points={
         "console_scripts": [
-            "skyhigh-scanner=skyhigh_scanner.__main__:main",
+            "vulnerability-management=vulnerability_management.__main__:main",
         ],
     },
     install_requires=[
@@ -29,7 +29,7 @@ setup(
         ],
     },
     package_data={
-        "skyhigh_scanner": [
+        "vulnerability_management": [
             "cve_data/seed/*.json",
             "cve_data/cpe_mappings.json",
             "benchmarks/*.json",

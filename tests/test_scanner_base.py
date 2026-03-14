@@ -1,12 +1,12 @@
-"""Tests for skyhigh_scanner.core.scanner_base."""
+"""Tests for vulnerability_management.core.scanner_base."""
 
 import json
 from pathlib import Path
 
 import pytest
 
-from skyhigh_scanner.core.finding import Finding
-from skyhigh_scanner.core.scanner_base import ScannerBase
+from vulnerability_management.core.finding import Finding
+from vulnerability_management.core.scanner_base import ScannerBase
 
 
 class ConcreteScanner(ScannerBase):

@@ -16,8 +16,8 @@ from __future__ import annotations
 import json
 from unittest.mock import MagicMock
 
-from skyhigh_scanner.core.finding import Finding
-from skyhigh_scanner.core.reporting import (
+from vulnerability_management.core.finding import Finding
+from vulnerability_management.core.reporting import (
     _build_evidence_html,
     _build_pdf_evidence_html,
     generate_html_report,
@@ -183,7 +183,7 @@ class TestSARIFEvidence:
     """SARIF export evidence in properties bag."""
 
     def test_sarif_includes_evidence(self, tmp_path):
-        from skyhigh_scanner.core.scanner_base import ScannerBase
+        from vulnerability_management.core.scanner_base import ScannerBase
 
         class TestScanner(ScannerBase):
             SCANNER_NAME = "Test"
@@ -217,7 +217,7 @@ class TestSARIFEvidence:
         assert result["properties"]["evidence"][0]["method"] == "GET"
 
     def test_sarif_no_evidence_when_none(self, tmp_path):
-        from skyhigh_scanner.core.scanner_base import ScannerBase
+        from vulnerability_management.core.scanner_base import ScannerBase
 
         class TestScanner(ScannerBase):
             SCANNER_NAME = "Test"
@@ -257,8 +257,8 @@ class TestDastScannerMetadata:
     """DastScanner summary includes DAST-specific metadata."""
 
     def test_summary_has_dast_metadata(self):
-        from skyhigh_scanner.dast.config import DastConfig, ScopePolicy
-        from skyhigh_scanner.scanners.dast_scanner import DastScanner
+        from vulnerability_management.dast.config import DastConfig, ScopePolicy
+        from vulnerability_management.scanners.dast_scanner import DastScanner
 
         scope = ScopePolicy(allowed_hosts={"example.com"})
         config = DastConfig(scope=scope)
@@ -291,8 +291,8 @@ class TestCheckModuleEvidence:
 
     def test_injection_sqli_has_evidence(self):
         """SQL injection findings should carry evidence."""
-        from skyhigh_scanner.dast.checks.injection import _check_sql_injection_urls
-        from skyhigh_scanner.dast.crawler import SiteMap
+        from vulnerability_management.dast.checks.injection import _check_sql_injection_urls
+        from vulnerability_management.dast.crawler import SiteMap
 
         client = MagicMock()
         resp = MagicMock()
@@ -315,8 +315,8 @@ class TestCheckModuleEvidence:
 
     def test_xss_reflected_has_evidence(self):
         """XSS findings should carry evidence."""
-        from skyhigh_scanner.dast.checks.xss import CANARY, _check_reflected_xss_params
-        from skyhigh_scanner.dast.crawler import SiteMap
+        from vulnerability_management.dast.checks.xss import CANARY, _check_reflected_xss_params
+        from vulnerability_management.dast.crawler import SiteMap
 
         client = MagicMock()
         resp = MagicMock()
@@ -345,7 +345,7 @@ class TestConsoleEvidence:
     """Console report prints evidence."""
 
     def test_console_prints_evidence(self, capsys):
-        from skyhigh_scanner.core.scanner_base import ScannerBase
+        from vulnerability_management.core.scanner_base import ScannerBase
 
         class TestScanner(ScannerBase):
             SCANNER_NAME = "Test"
@@ -372,7 +372,7 @@ class TestConsoleEvidence:
         assert "Payload" in captured.out
 
     def test_console_skips_evidence_when_none(self, capsys):
-        from skyhigh_scanner.core.scanner_base import ScannerBase
+        from vulnerability_management.core.scanner_base import ScannerBase
 
         class TestScanner(ScannerBase):
             SCANNER_NAME = "Test"

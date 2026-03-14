@@ -1,9 +1,9 @@
-"""Tests for skyhigh_scanner.core.credential_manager."""
+"""Tests for vulnerability_management.core.credential_manager."""
 
 import os
 from unittest.mock import patch
 
-from skyhigh_scanner.core.credential_manager import (
+from vulnerability_management.core.credential_manager import (
     CredentialManager,
     DBCredential,
 )
@@ -110,9 +110,9 @@ class TestCredentialFromFile:
 
 class TestCredentialFromEnv:
     @patch.dict(os.environ, {
-        "SKYHIGH_SSH_USERNAME": "env_user",
-        "SKYHIGH_SSH_PASSWORD": "env_pass",
-        "SKYHIGH_SSH_PORT": "2222",
+        "VULNMGMT_SSH_USERNAME": "env_user",
+        "VULNMGMT_SSH_PASSWORD": "env_pass",
+        "VULNMGMT_SSH_PORT": "2222",
     })
     def test_ssh_from_env(self):
         cm = CredentialManager()
@@ -120,7 +120,7 @@ class TestCredentialFromEnv:
         assert cm.ssh.username == "env_user"
         assert cm.ssh.port == 2222
 
-    @patch.dict(os.environ, {"SKYHIGH_SSH_USERNAME": "env_user"})
+    @patch.dict(os.environ, {"VULNMGMT_SSH_USERNAME": "env_user"})
     def test_cli_takes_priority_over_env(self):
         cm = CredentialManager()
         cm.set_ssh("cli_user", "cli_pass")
@@ -128,8 +128,8 @@ class TestCredentialFromEnv:
         assert cm.ssh.username == "cli_user"
 
     @patch.dict(os.environ, {
-        "SKYHIGH_SNMP_COMMUNITY": "env_community",
-        "SKYHIGH_ENABLE_PASSWORD": "env_enable",
+        "VULNMGMT_SNMP_COMMUNITY": "env_community",
+        "VULNMGMT_ENABLE_PASSWORD": "env_enable",
     })
     def test_snmp_and_enable_from_env(self):
         cm = CredentialManager()
@@ -138,10 +138,10 @@ class TestCredentialFromEnv:
         assert cm.enable.password == "env_enable"
 
     @patch.dict(os.environ, {
-        "SKYHIGH_DB_USERNAME": "env_dba",
-        "SKYHIGH_DB_PASSWORD": "env_pass",
-        "SKYHIGH_DB_PORT": "3306",
-        "SKYHIGH_DB_NAME": "mydb",
+        "VULNMGMT_DB_USERNAME": "env_dba",
+        "VULNMGMT_DB_PASSWORD": "env_pass",
+        "VULNMGMT_DB_PORT": "3306",
+        "VULNMGMT_DB_NAME": "mydb",
     })
     def test_db_from_env(self):
         cm = CredentialManager()

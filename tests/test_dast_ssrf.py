@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from skyhigh_scanner.dast.checks.ssrf import run_checks
-from skyhigh_scanner.dast.crawler import FormField, FormInfo, SiteMap
+from vulnerability_management.dast.checks.ssrf import run_checks
+from vulnerability_management.dast.crawler import FormField, FormInfo, SiteMap
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Helpers

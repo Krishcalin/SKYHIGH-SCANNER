@@ -13,14 +13,14 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from skyhigh_scanner.dast.config import DastConfig, ScopePolicy
-from skyhigh_scanner.dast.crawler import TechFingerprint
-from skyhigh_scanner.dast.discovery import (
+from vulnerability_management.dast.config import DastConfig, ScopePolicy
+from vulnerability_management.dast.crawler import TechFingerprint
+from vulnerability_management.dast.discovery import (
     RobotsTxtParser,
     SitemapParser,
     TechFingerprinter,
 )
-from skyhigh_scanner.dast.http_client import DastHTTPClient
+from vulnerability_management.dast.http_client import DastHTTPClient
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Helpers

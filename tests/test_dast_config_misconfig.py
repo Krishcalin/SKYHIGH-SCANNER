@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from skyhigh_scanner.dast.checks.config_misconfig import run_checks
-from skyhigh_scanner.dast.crawler import SiteMap
+from vulnerability_management.dast.checks.config_misconfig import run_checks
+from vulnerability_management.dast.crawler import SiteMap
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Helpers

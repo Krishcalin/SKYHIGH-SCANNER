@@ -5,13 +5,13 @@ from __future__ import annotations
 import json
 from unittest.mock import MagicMock
 
-from skyhigh_scanner.dast.checks.api_security import (
+from vulnerability_management.dast.checks.api_security import (
     _check_graphql_alias_dos,
     _check_graphql_batch_dos,
     _check_graphql_deep_nesting_dos,
     run_checks,
 )
-from skyhigh_scanner.dast.crawler import APIEndpoint, SiteMap
+from vulnerability_management.dast.crawler import APIEndpoint, SiteMap
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Helpers

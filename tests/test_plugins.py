@@ -5,7 +5,7 @@ import textwrap
 
 import pytest
 
-from skyhigh_scanner.core.plugin_registry import (
+from vulnerability_management.core.plugin_registry import (
     clear_registry,
     discover_plugins,
     get_plugin,
@@ -13,7 +13,7 @@ from skyhigh_scanner.core.plugin_registry import (
     list_plugins,
     scanner_plugin,
 )
-from skyhigh_scanner.core.scanner_base import ScannerBase
+from vulnerability_management.core.scanner_base import ScannerBase
 
 
 @pytest.fixture(autouse=True)
@@ -161,8 +161,8 @@ class TestFileDiscovery:
     def test_discover_from_directory(self, tmp_path):
         plugin_file = tmp_path / "custom_scanner.py"
         plugin_file.write_text(textwrap.dedent("""\
-            from skyhigh_scanner.core.scanner_base import ScannerBase
-            from skyhigh_scanner.core.plugin_registry import scanner_plugin
+            from vulnerability_management.core.scanner_base import ScannerBase
+            from vulnerability_management.core.plugin_registry import scanner_plugin
 
             @scanner_plugin(command="custom-scan", help="Custom scanner")
             class CustomScanner(ScannerBase):
@@ -226,16 +226,16 @@ class TestFileDiscovery:
         dir_b.mkdir()
 
         (dir_a / "scanner_a.py").write_text(textwrap.dedent("""\
-            from skyhigh_scanner.core.scanner_base import ScannerBase
-            from skyhigh_scanner.core.plugin_registry import scanner_plugin
+            from vulnerability_management.core.scanner_base import ScannerBase
+            from vulnerability_management.core.plugin_registry import scanner_plugin
 
             @scanner_plugin(command="plug-a", help="Plugin A")
             class ScannerA(ScannerBase):
                 def scan(self): pass
         """))
         (dir_b / "scanner_b.py").write_text(textwrap.dedent("""\
-            from skyhigh_scanner.core.scanner_base import ScannerBase
-            from skyhigh_scanner.core.plugin_registry import scanner_plugin
+            from vulnerability_management.core.scanner_base import ScannerBase
+            from vulnerability_management.core.plugin_registry import scanner_plugin
 
             @scanner_plugin(command="plug-b", help="Plugin B")
             class ScannerB(ScannerBase):
@@ -335,7 +335,7 @@ class TestPluginExecution:
 
 class TestCliPluginIntegration:
     def test_plugin_subcommand_registered(self):
-        from skyhigh_scanner.__main__ import _build_parser
+        from vulnerability_management.__main__ import _build_parser
         parser = _build_parser()
         # The example plugin should be available as a subcommand
         args = parser.parse_args([
@@ -345,7 +345,7 @@ class TestCliPluginIntegration:
         assert args.target == "10.0.0.1"
 
     def test_plugin_subcommand_has_output_args(self):
-        from skyhigh_scanner.__main__ import _build_parser
+        from vulnerability_management.__main__ import _build_parser
         parser = _build_parser()
         args = parser.parse_args([
             "example", "-t", "10.0.0.1",
@@ -356,7 +356,7 @@ class TestCliPluginIntegration:
         assert args.sarif_file == "report.sarif"
 
     def test_plugin_subcommand_has_scan_args(self):
-        from skyhigh_scanner.__main__ import _build_parser
+        from vulnerability_management.__main__ import _build_parser
         parser = _build_parser()
         args = parser.parse_args([
             "example", "-t", "10.0.0.1",
@@ -367,7 +367,7 @@ class TestCliPluginIntegration:
         assert args.compliance is True
 
     def test_plugin_dir_flag_accepted(self):
-        from skyhigh_scanner.__main__ import _build_parser
+        from vulnerability_management.__main__ import _build_parser
         parser = _build_parser()
         args = parser.parse_args([
             "--plugin-dir", "/some/dir",
@@ -378,8 +378,8 @@ class TestCliPluginIntegration:
     def test_plugin_dir_from_external(self, tmp_path):
         plugin_file = tmp_path / "ext_scanner.py"
         plugin_file.write_text(textwrap.dedent("""\
-            from skyhigh_scanner.core.scanner_base import ScannerBase
-            from skyhigh_scanner.core.plugin_registry import scanner_plugin
+            from vulnerability_management.core.scanner_base import ScannerBase
+            from vulnerability_management.core.plugin_registry import scanner_plugin
 
             @scanner_plugin(command="ext-scan", help="External scanner")
             class ExtScanner(ScannerBase):
@@ -394,7 +394,7 @@ class TestCliPluginIntegration:
                     self._stop_timer()
         """))
 
-        from skyhigh_scanner.__main__ import _build_parser
+        from vulnerability_management.__main__ import _build_parser
         parser = _build_parser(plugin_dirs=[str(tmp_path)])
         args = parser.parse_args(["ext-scan", "-t", "10.0.0.1"])
         assert args.command == "ext-scan"

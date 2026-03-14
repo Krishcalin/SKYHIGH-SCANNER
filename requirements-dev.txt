@@ -1,4 +1,4 @@
-# SkyHigh Scanner — Development & Testing Dependencies
+# Vulnerability Management Scanner — Development & Testing Dependencies
 
 # Testing
 pytest>=7.4.0

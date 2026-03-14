@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from skyhigh_scanner.core.baseline import (
+from vulnerability_management.core.baseline import (
     _finding_key,
     _finding_key_from_dict,
     compute_diff,
@@ -12,7 +12,7 @@ from skyhigh_scanner.core.baseline import (
     load_baseline,
     print_diff_report,
 )
-from skyhigh_scanner.core.finding import Finding
+from vulnerability_management.core.finding import Finding
 
 
 def _make_finding(**kwargs):

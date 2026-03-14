@@ -1,7 +1,7 @@
-"""Tests for skyhigh_scanner.core.version_utils."""
+"""Tests for vulnerability_management.core.version_utils."""
 
 
-from skyhigh_scanner.core.version_utils import (
+from vulnerability_management.core.version_utils import (
     compare_versions,
     is_eol,
     parse_ver,

@@ -8,7 +8,7 @@ import time
 
 import pytest
 
-from skyhigh_scanner.dast.config import (
+from vulnerability_management.dast.config import (
     CircuitBreaker,
     CircuitBreakerOpen,
     DastConfig,
@@ -341,7 +341,7 @@ class TestDastConfigPhase6:
     def test_new_field_defaults(self):
         config = DastConfig()
         assert config.verify_ssl is False
-        assert config.user_agent == "SkyHigh-DAST/1.0"
+        assert config.user_agent == "VulnMgmt-DAST/1.0"
         assert config.proxy is None
         assert config.max_pages == 500
         assert config.max_retries == 3

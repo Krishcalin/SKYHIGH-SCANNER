@@ -1,8 +1,8 @@
-"""Tests for skyhigh_scanner.core.finding."""
+"""Tests for vulnerability_management.core.finding."""
 
 import json
 
-from skyhigh_scanner.core.finding import Finding
+from vulnerability_management.core.finding import Finding
 
 
 class TestFinding:

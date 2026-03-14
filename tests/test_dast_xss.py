@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from skyhigh_scanner.dast.checks.xss import (
+from vulnerability_management.dast.checks.xss import (
     CANARY,
     STORED_XSS_CANARY_PREFIX,
     _check_stored_xss,
     run_checks,
 )
-from skyhigh_scanner.dast.crawler import FormField, FormInfo, SiteMap
+from vulnerability_management.dast.crawler import FormField, FormInfo, SiteMap
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Helpers

@@ -1,11 +1,11 @@
-"""Tests for skyhigh_scanner.core.cve_database."""
+"""Tests for vulnerability_management.core.cve_database."""
 
 import json
 from pathlib import Path
 
 import pytest
 
-from skyhigh_scanner.core.cve_database import CVEDatabase
+from vulnerability_management.core.cve_database import CVEDatabase
 
 
 class TestCVEDatabaseInit:
@@ -116,7 +116,7 @@ class TestVersionLookup:
 
 class TestKevFlagging:
     def test_flag_kev_findings(self, tmp_cve_db, mini_seed_dir):
-        from skyhigh_scanner.core.finding import Finding
+        from vulnerability_management.core.finding import Finding
 
         with CVEDatabase(db_path=tmp_cve_db) as db:
             db.import_seed(str(mini_seed_dir))
@@ -156,7 +156,7 @@ class TestRealSeedImport:
     """Import the actual seed files from the project to verify they parse."""
 
     def test_import_all_real_seeds(self, tmp_cve_db):
-        seed_dir = Path(__file__).parent.parent / "skyhigh_scanner" / "cve_data" / "seed"
+        seed_dir = Path(__file__).parent.parent / "vulnerability_management" / "cve_data" / "seed"
         if not seed_dir.exists():
             pytest.skip("Seed directory not found")
 

@@ -2,7 +2,7 @@
 
 import pytest
 
-from skyhigh_scanner.__main__ import _build_parser
+from vulnerability_management.__main__ import _build_parser
 
 
 class TestCliParser:

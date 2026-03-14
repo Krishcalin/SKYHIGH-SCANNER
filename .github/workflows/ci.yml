@@ -35,7 +35,7 @@ jobs:
       - name: Run tests with coverage
         run: |
           pytest tests/ -v --tb=short --co -q 2>/dev/null | head -5
-          pytest tests/ -v --tb=short --cov=skyhigh_scanner --cov-report=term-missing
+          pytest tests/ -v --tb=short --cov=vulnerability_management --cov-report=term-missing
 
       - name: Upload coverage (Python 3.12 only)
         if: matrix.python-version == '3.12'
@@ -59,10 +59,10 @@ jobs:
         run: pip install ruff
 
       - name: Run ruff check
-        run: ruff check skyhigh_scanner/ tests/ --output-format=github
+        run: ruff check vulnerability_management/ tests/ --output-format=github
 
       - name: Run ruff format check
-        run: ruff format --check skyhigh_scanner/ tests/
+        run: ruff format --check vulnerability_management/ tests/
         continue-on-error: true
 
   seed-validation:

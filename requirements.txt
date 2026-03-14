@@ -1,4 +1,4 @@
-# SkyHigh Scanner — Dependencies
+# Vulnerability Management Scanner — Dependencies
 # All dependencies are optional; the scanner degrades gracefully without them.
 # Install only what you need for your target types.
 

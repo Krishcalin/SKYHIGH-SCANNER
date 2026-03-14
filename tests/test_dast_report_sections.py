@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from skyhigh_scanner.core.finding import Finding
-from skyhigh_scanner.core.reporting import (
+from vulnerability_management.core.finding import Finding
+from vulnerability_management.core.reporting import (
     _build_dast_sections,
     generate_html_report,
 )
@@ -185,7 +185,7 @@ class TestDastReportIntegration:
         findings = [_sample_finding()]
         summary = _dast_summary()
         report = generate_html_report(
-            scanner_name="SkyHigh DAST Scanner",
+            scanner_name="VulnMgmt DAST Scanner",
             version="1.0.0",
             target_type="dast",
             findings=findings,
@@ -202,7 +202,7 @@ class TestDastReportIntegration:
                                      target_type="linux")]
         summary = _non_dast_summary()
         report = generate_html_report(
-            scanner_name="SkyHigh Linux Scanner",
+            scanner_name="VulnMgmt Linux Scanner",
             version="1.0.0",
             target_type="linux",
             findings=findings,
@@ -215,7 +215,7 @@ class TestDastReportIntegration:
         findings = [_sample_finding()]
         summary = _dast_summary()
         report = generate_html_report(
-            scanner_name="SkyHigh DAST Scanner",
+            scanner_name="VulnMgmt DAST Scanner",
             version="1.0.0",
             target_type="dast",
             findings=findings,
@@ -230,7 +230,7 @@ class TestDastReportIntegration:
         findings = [_sample_finding()]
         summary = _dast_summary()
         report = generate_html_report(
-            scanner_name="SkyHigh DAST Scanner",
+            scanner_name="VulnMgmt DAST Scanner",
             version="1.0.0",
             target_type="dast",
             findings=findings,

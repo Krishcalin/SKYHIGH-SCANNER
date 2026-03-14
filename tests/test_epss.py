@@ -6,8 +6,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from skyhigh_scanner.core.cve_database import CVEDatabase
-from skyhigh_scanner.core.finding import Finding
+from vulnerability_management.core.cve_database import CVEDatabase
+from vulnerability_management.core.finding import Finding
 
 # ── CVE Database: EPSS propagation ─────────────────────────────────────
 
@@ -194,7 +194,7 @@ class TestFindingEpss:
 
 class TestScannerBaseEpss:
     def test_summary_epss_fields(self):
-        from skyhigh_scanner.core.scanner_base import ScannerBase
+        from vulnerability_management.core.scanner_base import ScannerBase
 
         class Stub(ScannerBase):
             SCANNER_NAME = "T"
@@ -224,7 +224,7 @@ class TestScannerBaseEpss:
         assert summary["epss_high_risk"] == 1  # only 0.75 >= 0.5
 
     def test_csv_includes_epss_header(self, tmp_dir):
-        from skyhigh_scanner.core.scanner_base import ScannerBase
+        from vulnerability_management.core.scanner_base import ScannerBase
 
         class Stub(ScannerBase):
             SCANNER_NAME = "T"
@@ -245,7 +245,7 @@ class TestScannerBaseEpss:
         assert "epss" in header
 
     def test_console_report_shows_epss(self, capsys):
-        from skyhigh_scanner.core.scanner_base import ScannerBase
+        from vulnerability_management.core.scanner_base import ScannerBase
 
         class Stub(ScannerBase):
             SCANNER_NAME = "T"
@@ -280,7 +280,7 @@ class TestHtmlReportEpss:
         return base
 
     def test_epss_badge_high(self):
-        from skyhigh_scanner.core.reporting import generate_html_report
+        from vulnerability_management.core.reporting import generate_html_report
 
         f = Finding(
             rule_id="T", name="T", category="C", severity="HIGH",
@@ -293,7 +293,7 @@ class TestHtmlReportEpss:
         assert "epss-high" in html
 
     def test_epss_badge_medium(self):
-        from skyhigh_scanner.core.reporting import generate_html_report
+        from vulnerability_management.core.reporting import generate_html_report
 
         f = Finding(
             rule_id="T", name="T", category="C", severity="HIGH",
@@ -306,7 +306,7 @@ class TestHtmlReportEpss:
         assert "epss-med" in html
 
     def test_epss_badge_low(self):
-        from skyhigh_scanner.core.reporting import generate_html_report
+        from vulnerability_management.core.reporting import generate_html_report
 
         f = Finding(
             rule_id="T", name="T", category="C", severity="HIGH",
@@ -319,7 +319,7 @@ class TestHtmlReportEpss:
         assert "epss-low" in html
 
     def test_no_epss_badge_when_none(self):
-        from skyhigh_scanner.core.reporting import generate_html_report
+        from vulnerability_management.core.reporting import generate_html_report
 
         f = Finding(
             rule_id="T", name="T", category="C", severity="HIGH",
@@ -331,7 +331,7 @@ class TestHtmlReportEpss:
         assert "EPSS " not in html.split("findingsContainer")[1] if "findingsContainer" in html else True
 
     def test_epss_dashboard_card(self):
-        from skyhigh_scanner.core.reporting import generate_html_report
+        from vulnerability_management.core.reporting import generate_html_report
 
         f = Finding(
             rule_id="T", name="T", category="C", severity="HIGH",
@@ -347,14 +347,14 @@ class TestHtmlReportEpss:
 
 class TestCliEpssSync:
     def test_epss_sync_parses(self):
-        from skyhigh_scanner.__main__ import _build_parser
+        from vulnerability_management.__main__ import _build_parser
         parser = _build_parser()
         args = parser.parse_args(["epss-sync", "-v"])
         assert args.command == "epss-sync"
         assert args.verbose is True
 
     def test_epss_sync_default(self):
-        from skyhigh_scanner.__main__ import _build_parser
+        from vulnerability_management.__main__ import _build_parser
         parser = _build_parser()
         args = parser.parse_args(["epss-sync"])
         assert args.command == "epss-sync"
@@ -372,7 +372,7 @@ except ImportError:
 @pytest.mark.skipif(not HAS_REQUESTS, reason="requests not installed")
 class TestCveSyncEpss:
     def test_sync_epss_mocked(self, tmp_cve_db, mini_seed_dir):
-        from skyhigh_scanner.core.cve_sync import CVESync
+        from vulnerability_management.core.cve_sync import CVESync
 
         with CVEDatabase(db_path=tmp_cve_db) as db:
             db.import_seed(str(mini_seed_dir))
@@ -403,7 +403,7 @@ class TestCveSyncEpss:
             assert cur.fetchone()["epss_score"] == 0.15
 
     def test_sync_epss_api_error(self, tmp_cve_db, mini_seed_dir):
-        from skyhigh_scanner.core.cve_sync import CVESync
+        from vulnerability_management.core.cve_sync import CVESync
 
         with CVEDatabase(db_path=tmp_cve_db) as db:
             db.import_seed(str(mini_seed_dir))
@@ -416,7 +416,7 @@ class TestCveSyncEpss:
             assert count == 0
 
     def test_sync_epss_empty_db(self, tmp_cve_db):
-        from skyhigh_scanner.core.cve_sync import CVESync
+        from vulnerability_management.core.cve_sync import CVESync
 
         with CVEDatabase(db_path=tmp_cve_db) as db:
             sync = CVESync(db, verbose=False)

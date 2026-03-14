@@ -37,7 +37,7 @@ desktop.ini
 *.csv
 
 # Database
-skyhigh_scanner/cve_data/skyhigh_scanner.db
+vulnerability_management/cve_data/*.db
 
 # Credentials (NEVER commit)
 credentials.yaml

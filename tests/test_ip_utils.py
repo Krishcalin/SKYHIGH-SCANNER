@@ -1,8 +1,8 @@
-"""Tests for skyhigh_scanner.core.ip_utils."""
+"""Tests for vulnerability_management.core.ip_utils."""
 
 from unittest.mock import patch
 
-from skyhigh_scanner.core.ip_utils import expand_ip_range, is_private, reverse_dns
+from vulnerability_management.core.ip_utils import expand_ip_range, is_private, reverse_dns
 
 # ── expand_ip_range ───────────────────────────────────────────────────
 
@@ -63,14 +63,14 @@ class TestExpandIpRange:
         result = expand_ip_range("10.0.0.5-10.0.0.1")
         assert len(result) == 5
 
-    @patch("skyhigh_scanner.core.ip_utils.socket.gethostbyname")
+    @patch("vulnerability_management.core.ip_utils.socket.gethostbyname")
     def test_hostname_resolution(self, mock_dns):
         mock_dns.return_value = "93.184.216.34"
         result = expand_ip_range("example.com")
         assert result == ["93.184.216.34"]
         mock_dns.assert_called_once_with("example.com")
 
-    @patch("skyhigh_scanner.core.ip_utils.socket.gethostbyname")
+    @patch("vulnerability_management.core.ip_utils.socket.gethostbyname")
     def test_hostname_unresolvable(self, mock_dns):
         import socket
         mock_dns.side_effect = socket.gaierror("DNS lookup failed")
@@ -100,12 +100,12 @@ class TestIsPrivate:
 # ── reverse_dns ───────────────────────────────────────────────────────
 
 class TestReverseDns:
-    @patch("skyhigh_scanner.core.ip_utils.socket.gethostbyaddr")
+    @patch("vulnerability_management.core.ip_utils.socket.gethostbyaddr")
     def test_success(self, mock_rdns):
         mock_rdns.return_value = ("server.example.com", [], ["10.0.0.1"])
         assert reverse_dns("10.0.0.1") == "server.example.com"
 
-    @patch("skyhigh_scanner.core.ip_utils.socket.gethostbyaddr")
+    @patch("vulnerability_management.core.ip_utils.socket.gethostbyaddr")
     def test_failure(self, mock_rdns):
         import socket
         mock_rdns.side_effect = socket.herror("No PTR record")

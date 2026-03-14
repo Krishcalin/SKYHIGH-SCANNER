@@ -6,8 +6,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from skyhigh_scanner.dast.config import DastConfig, ScopePolicy
-from skyhigh_scanner.dast.crawler import (
+from vulnerability_management.dast.config import DastConfig, ScopePolicy
+from vulnerability_management.dast.crawler import (
     APIEndpoint,
     CrawlStats,
     FormField,
@@ -20,7 +20,7 @@ from skyhigh_scanner.dast.crawler import (
     _LinkFormParser,
     _URLPatternTracker,
 )
-from skyhigh_scanner.dast.http_client import DastHTTPClient
+from vulnerability_management.dast.http_client import DastHTTPClient
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # SiteMap

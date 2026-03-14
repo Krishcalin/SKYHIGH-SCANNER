@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from skyhigh_scanner.core.cve_database import CVEDatabase
+from vulnerability_management.core.cve_database import CVEDatabase
 
 try:
     import requests as _requests  # noqa: F401
@@ -18,27 +18,27 @@ except ImportError:
 
 class TestCliIncrementalFlags:
     def test_incremental_flag_parses(self):
-        from skyhigh_scanner.__main__ import _build_parser
+        from vulnerability_management.__main__ import _build_parser
         parser = _build_parser()
         args = parser.parse_args(["cve-sync", "--incremental"])
         assert args.incremental is True
         assert args.command == "cve-sync"
 
     def test_platform_filter_parses(self):
-        from skyhigh_scanner.__main__ import _build_parser
+        from vulnerability_management.__main__ import _build_parser
         parser = _build_parser()
         args = parser.parse_args(["cve-sync", "--platform", "nginx", "tomcat"])
         assert args.platform == ["nginx", "tomcat"]
 
     def test_incremental_with_platform(self):
-        from skyhigh_scanner.__main__ import _build_parser
+        from vulnerability_management.__main__ import _build_parser
         parser = _build_parser()
         args = parser.parse_args(["cve-sync", "--incremental", "--platform", "apache_httpd"])
         assert args.incremental is True
         assert args.platform == ["apache_httpd"]
 
     def test_platform_default_none(self):
-        from skyhigh_scanner.__main__ import _build_parser
+        from vulnerability_management.__main__ import _build_parser
         parser = _build_parser()
         args = parser.parse_args(["cve-sync"])
         assert args.platform is None
@@ -49,7 +49,7 @@ class TestCliIncrementalFlags:
 @pytest.mark.skipif(not HAS_REQUESTS, reason="requests not installed")
 class TestDateWindows:
     def _make_sync(self, tmp_cve_db):
-        from skyhigh_scanner.core.cve_sync import CVESync
+        from vulnerability_management.core.cve_sync import CVESync
         db = CVEDatabase(db_path=tmp_cve_db)
         db.open()
         sync = CVESync(db, verbose=False)
@@ -106,21 +106,21 @@ class TestParseIso:
 
     @pytest.mark.skipif(not HAS_REQUESTS, reason="requests not installed")
     def test_parse_with_timezone(self):
-        from skyhigh_scanner.core.cve_sync import CVESync
+        from vulnerability_management.core.cve_sync import CVESync
         dt = CVESync._parse_iso("2025-03-01T12:00:00+00:00")
         assert dt is not None
         assert dt.tzinfo is not None
 
     @pytest.mark.skipif(not HAS_REQUESTS, reason="requests not installed")
     def test_parse_without_timezone(self):
-        from skyhigh_scanner.core.cve_sync import CVESync
+        from vulnerability_management.core.cve_sync import CVESync
         dt = CVESync._parse_iso("2025-03-01T12:00:00")
         assert dt is not None
         assert dt.tzinfo == timezone.utc
 
     @pytest.mark.skipif(not HAS_REQUESTS, reason="requests not installed")
     def test_parse_invalid(self):
-        from skyhigh_scanner.core.cve_sync import CVESync
+        from vulnerability_management.core.cve_sync import CVESync
         assert CVESync._parse_iso("not-a-date") is None
         assert CVESync._parse_iso("") is None
 
@@ -128,7 +128,7 @@ class TestParseIso:
 @pytest.mark.skipif(not HAS_REQUESTS, reason="requests not installed")
 class TestResolvePlatforms:
     def test_resolve_all(self, tmp_cve_db):
-        from skyhigh_scanner.core.cve_sync import CPE_QUERIES, CVESync
+        from vulnerability_management.core.cve_sync import CPE_QUERIES, CVESync
         db = CVEDatabase(db_path=tmp_cve_db)
         db.open()
         try:
@@ -139,7 +139,7 @@ class TestResolvePlatforms:
             db.close()
 
     def test_resolve_specific(self, tmp_cve_db):
-        from skyhigh_scanner.core.cve_sync import CVESync
+        from vulnerability_management.core.cve_sync import CVESync
         db = CVEDatabase(db_path=tmp_cve_db)
         db.open()
         try:
@@ -152,7 +152,7 @@ class TestResolvePlatforms:
             db.close()
 
     def test_resolve_unknown_skipped(self, tmp_cve_db, capsys):
-        from skyhigh_scanner.core.cve_sync import CVESync
+        from vulnerability_management.core.cve_sync import CVESync
         db = CVEDatabase(db_path=tmp_cve_db)
         db.open()
         try:
@@ -169,7 +169,7 @@ class TestResolvePlatforms:
 @pytest.mark.skipif(not HAS_REQUESTS, reason="requests not installed")
 class TestSyncMetadata:
     def test_save_and_get_sync_ts(self, tmp_cve_db):
-        from skyhigh_scanner.core.cve_sync import CVESync
+        from vulnerability_management.core.cve_sync import CVESync
         with CVEDatabase(db_path=tmp_cve_db) as db:
             sync = CVESync(db, verbose=False)
             sync._save_sync_ts("test_key")
@@ -178,13 +178,13 @@ class TestSyncMetadata:
             assert "T" in ts  # ISO format
 
     def test_get_nonexistent_ts(self, tmp_cve_db):
-        from skyhigh_scanner.core.cve_sync import CVESync
+        from vulnerability_management.core.cve_sync import CVESync
         with CVEDatabase(db_path=tmp_cve_db) as db:
             sync = CVESync(db, verbose=False)
             assert sync._get_sync_ts("nonexistent") is None
 
     def test_get_last_sync(self, tmp_cve_db):
-        from skyhigh_scanner.core.cve_sync import CVESync
+        from vulnerability_management.core.cve_sync import CVESync
         with CVEDatabase(db_path=tmp_cve_db) as db:
             sync = CVESync(db, verbose=False)
             assert sync.get_last_sync() is None
@@ -192,7 +192,7 @@ class TestSyncMetadata:
             assert sync.get_last_sync() is not None
 
     def test_platform_sync_ts(self, tmp_cve_db):
-        from skyhigh_scanner.core.cve_sync import CVESync
+        from vulnerability_management.core.cve_sync import CVESync
         with CVEDatabase(db_path=tmp_cve_db) as db:
             sync = CVESync(db, verbose=False)
             sync._save_platform_sync_ts("nginx")
@@ -200,7 +200,7 @@ class TestSyncMetadata:
             assert ts is not None
 
     def test_stats_include_sync_metadata(self, tmp_cve_db, mini_seed_dir):
-        from skyhigh_scanner.core.cve_sync import CVESync
+        from vulnerability_management.core.cve_sync import CVESync
         with CVEDatabase(db_path=tmp_cve_db) as db:
             db.import_seed(str(mini_seed_dir))
             sync = CVESync(db, verbose=False)
@@ -215,7 +215,7 @@ class TestSyncMetadata:
 @pytest.mark.skipif(not HAS_REQUESTS, reason="requests not installed")
 class TestIncrementalNoHistory:
     def test_incremental_without_prior_sync_returns_empty(self, tmp_cve_db, capsys):
-        from skyhigh_scanner.core.cve_sync import CVESync
+        from vulnerability_management.core.cve_sync import CVESync
         with CVEDatabase(db_path=tmp_cve_db) as db:
             sync = CVESync(db, verbose=False)
             result = sync.sync_incremental()
@@ -227,7 +227,7 @@ class TestIncrementalNoHistory:
 @pytest.mark.skipif(not HAS_REQUESTS, reason="requests not installed")
 class TestIncrementalSyncMocked:
     def test_incremental_sync_calls_modified_endpoint(self, tmp_cve_db, mini_seed_dir):
-        from skyhigh_scanner.core.cve_sync import CVESync
+        from vulnerability_management.core.cve_sync import CVESync
 
         with CVEDatabase(db_path=tmp_cve_db) as db:
             db.import_seed(str(mini_seed_dir))
@@ -272,7 +272,7 @@ class TestIncrementalSyncMocked:
             assert "_epss_enriched" in results
 
     def test_incremental_sync_processes_modified_cves(self, tmp_cve_db, mini_seed_dir):
-        from skyhigh_scanner.core.cve_sync import CVESync
+        from vulnerability_management.core.cve_sync import CVESync
 
         with CVEDatabase(db_path=tmp_cve_db) as db:
             db.import_seed(str(mini_seed_dir))
@@ -335,7 +335,7 @@ class TestIncrementalSyncMocked:
 @pytest.mark.skipif(not HAS_REQUESTS, reason="requests not installed")
 class TestPlatformFilter:
     def test_sync_all_with_platform_filter(self, tmp_cve_db):
-        from skyhigh_scanner.core.cve_sync import CVESync
+        from vulnerability_management.core.cve_sync import CVESync
 
         with CVEDatabase(db_path=tmp_cve_db) as db:
             sync = CVESync(db, verbose=False)

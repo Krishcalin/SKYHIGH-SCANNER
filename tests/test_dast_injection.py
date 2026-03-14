@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from skyhigh_scanner.dast.checks.injection import (
+from vulnerability_management.dast.checks.injection import (
     _check_http_param_pollution,
     _check_ldap_injection,
     run_checks,
 )
-from skyhigh_scanner.dast.crawler import APIEndpoint, FormField, FormInfo, SiteMap
+from vulnerability_management.dast.crawler import APIEndpoint, FormField, FormInfo, SiteMap
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Helpers

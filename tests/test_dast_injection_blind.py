@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 from unittest.mock import MagicMock, patch
 
-from skyhigh_scanner.dast.checks.injection import (
+from vulnerability_management.dast.checks.injection import (
     BLIND_BOOLEAN_PAIRS,
     BLIND_TIME_PAYLOADS,
     BLIND_TIME_THRESHOLD_S,
@@ -13,7 +13,7 @@ from skyhigh_scanner.dast.checks.injection import (
     _check_blind_sqli_time,
     run_checks,
 )
-from skyhigh_scanner.dast.crawler import SiteMap
+from vulnerability_management.dast.crawler import SiteMap
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Helpers
@@ -84,7 +84,7 @@ class TestBlindSQLiTime:
             10.6,  # confirm end (5.2s delta)
         ])
 
-        with patch("skyhigh_scanner.dast.checks.injection.time") as mock_time:
+        with patch("vulnerability_management.dast.checks.injection.time") as mock_time:
             mock_time.monotonic.side_effect = lambda: next(times)
             _check_blind_sqli_time(client, sm, findings)
 
@@ -103,7 +103,7 @@ class TestBlindSQLiTime:
                       1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9])
 
         findings = []
-        with patch("skyhigh_scanner.dast.checks.injection.time") as mock_time:
+        with patch("vulnerability_management.dast.checks.injection.time") as mock_time:
             mock_time.monotonic.side_effect = lambda: next(times)
             _check_blind_sqli_time(client, sm, findings)
 
@@ -127,7 +127,7 @@ class TestBlindSQLiTime:
 
         times = iter([i * 0.1 for i in range(200)])
         findings = []
-        with patch("skyhigh_scanner.dast.checks.injection.time") as mock_time:
+        with patch("vulnerability_management.dast.checks.injection.time") as mock_time:
             mock_time.monotonic.side_effect = lambda: next(times)
             _check_blind_sqli_time(client, sm, findings)
 
@@ -235,7 +235,7 @@ class TestBlindSQLiIntegration:
         client = _mock_client(get_text="<html>Normal</html>")
         sm = _url_sitemap("https://example.com/page?id=1")
 
-        with patch("skyhigh_scanner.dast.checks.injection.time") as mock_time:
+        with patch("vulnerability_management.dast.checks.injection.time") as mock_time:
             mock_time.monotonic.return_value = 0.1
             findings = run_checks(client, "https://example.com", sm)
 

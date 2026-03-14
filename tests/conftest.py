@@ -1,4 +1,4 @@
-"""Shared fixtures for SkyHigh Scanner test suite."""
+"""Shared fixtures for Vulnerability Management Scanner test suite."""
 
 from __future__ import annotations
 
@@ -10,14 +10,14 @@ import pytest
 
 # Project root and data directories
 PROJECT_ROOT = Path(__file__).parent.parent
-SEED_DIR = PROJECT_ROOT / "skyhigh_scanner" / "cve_data" / "seed"
-BENCHMARK_DIR = PROJECT_ROOT / "skyhigh_scanner" / "benchmarks"
+SEED_DIR = PROJECT_ROOT / "vulnerability_management" / "cve_data" / "seed"
+BENCHMARK_DIR = PROJECT_ROOT / "vulnerability_management" / "benchmarks"
 
 
 @pytest.fixture
 def sample_finding():
     """Return a minimal Finding instance for testing."""
-    from skyhigh_scanner.core.finding import Finding
+    from vulnerability_management.core.finding import Finding
 
     return Finding(
         rule_id="TEST-001",
@@ -40,7 +40,7 @@ def sample_finding():
 @pytest.fixture
 def sample_findings():
     """Return a list of findings across severities."""
-    from skyhigh_scanner.core.finding import Finding
+    from vulnerability_management.core.finding import Finding
 
     severities = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]
     findings = []

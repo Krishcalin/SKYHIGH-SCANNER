@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from skyhigh_scanner.core.finding import Finding
+from vulnerability_management.core.finding import Finding
 
 # ── Fixtures ──────────────────────────────────────────────────────────
 
@@ -30,7 +30,7 @@ class _StubScanner:
 
 def _make_stub(findings=None):
     """Bind ScannerBase.save_sarif to the stub."""
-    from skyhigh_scanner.core.scanner_base import ScannerBase
+    from vulnerability_management.core.scanner_base import ScannerBase
     stub = _StubScanner(findings)
     stub.save_sarif = ScannerBase.save_sarif.__get__(stub, _StubScanner)
     return stub
@@ -271,7 +271,7 @@ class TestSarifResultProperties:
             sarif = json.load(f)
 
         fp = sarif["runs"][0]["results"][0]["fingerprints"]
-        assert fp["skyhigh/v1"] == "TEST-001:10.0.0.5:10"
+        assert fp["vulnmgmt/v1"] == "TEST-001:10.0.0.5:10"
 
     def test_fixes_from_recommendation(self, tmp_path):
         finding = _basic_finding(recommendation="Upgrade to v2.0")
@@ -381,19 +381,19 @@ class TestSarifDeduplication:
 
 class TestCliSarifFlag:
     def test_sarif_flag_parses(self):
-        from skyhigh_scanner.__main__ import _build_parser
+        from vulnerability_management.__main__ import _build_parser
         parser = _build_parser()
         args = parser.parse_args(["linux", "-r", "10.0.0.0/24", "--sarif", "report.sarif"])
         assert args.sarif_file == "report.sarif"
 
     def test_sarif_default_none(self):
-        from skyhigh_scanner.__main__ import _build_parser
+        from vulnerability_management.__main__ import _build_parser
         parser = _build_parser()
         args = parser.parse_args(["linux", "-r", "10.0.0.0/24"])
         assert args.sarif_file is None
 
     def test_sarif_with_other_outputs(self):
-        from skyhigh_scanner.__main__ import _build_parser
+        from vulnerability_management.__main__ import _build_parser
         parser = _build_parser()
         args = parser.parse_args([
             "linux", "-r", "10.0.0.0/24",

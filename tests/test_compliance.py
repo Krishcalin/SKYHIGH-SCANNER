@@ -1,6 +1,6 @@
 """Tests for compliance framework mapping engine."""
 
-from skyhigh_scanner.core.compliance import (
+from vulnerability_management.core.compliance import (
     CATEGORY_MAP,
     CWE_MAP,
     FRAMEWORKS,
@@ -14,7 +14,7 @@ from skyhigh_scanner.core.compliance import (
     format_controls,
     map_finding,
 )
-from skyhigh_scanner.core.finding import Finding
+from vulnerability_management.core.finding import Finding
 
 # ── Helper ────────────────────────────────────────────────────────────
 
@@ -292,7 +292,7 @@ class TestFindingSerialization:
 
 class TestScannerBaseCompliance:
     def test_enrich_compliance_method(self):
-        from skyhigh_scanner.core.scanner_base import ScannerBase
+        from vulnerability_management.core.scanner_base import ScannerBase
 
         class DummyScanner(ScannerBase):
             def scan(self):
@@ -311,7 +311,7 @@ class TestScannerBaseCompliance:
         assert scanner.findings[1].compliance is not None
 
     def test_summary_includes_compliance(self):
-        from skyhigh_scanner.core.scanner_base import ScannerBase
+        from vulnerability_management.core.scanner_base import ScannerBase
 
         class DummyScanner(ScannerBase):
             def scan(self):
@@ -328,7 +328,7 @@ class TestScannerBaseCompliance:
     def test_csv_has_compliance_columns(self, tmp_path):
         import csv
 
-        from skyhigh_scanner.core.scanner_base import ScannerBase
+        from vulnerability_management.core.scanner_base import ScannerBase
 
         class DummyScanner(ScannerBase):
             def scan(self):
@@ -354,7 +354,7 @@ class TestScannerBaseCompliance:
 
 class TestHtmlCompliance:
     def test_compliance_in_html(self):
-        from skyhigh_scanner.core.reporting import generate_html_report
+        from vulnerability_management.core.reporting import generate_html_report
 
         f = _make_finding(cwe="CWE-89")
         enrich_finding(f)
@@ -365,7 +365,7 @@ class TestHtmlCompliance:
         assert "Compliance Framework Mapping" in html_out
 
     def test_no_compliance_section_without_enrichment(self):
-        from skyhigh_scanner.core.reporting import generate_html_report
+        from vulnerability_management.core.reporting import generate_html_report
 
         f = _make_finding()
         summary = {"severity_counts": {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 0, "LOW": 0, "INFO": 0}}
@@ -373,7 +373,7 @@ class TestHtmlCompliance:
         assert "Compliance Framework Mapping" not in html_out
 
     def test_compliance_dashboard_card(self):
-        from skyhigh_scanner.core.reporting import generate_html_report
+        from vulnerability_management.core.reporting import generate_html_report
 
         f = _make_finding(cwe="CWE-89")
         enrich_finding(f)
@@ -386,13 +386,13 @@ class TestHtmlCompliance:
 
 class TestCliComplianceFlag:
     def test_compliance_flag_parses(self):
-        from skyhigh_scanner.__main__ import _build_parser
+        from vulnerability_management.__main__ import _build_parser
         parser = _build_parser()
         args = parser.parse_args(["linux", "-r", "10.0.0.0/24", "--compliance"])
         assert args.compliance is True
 
     def test_compliance_default_false(self):
-        from skyhigh_scanner.__main__ import _build_parser
+        from vulnerability_management.__main__ import _build_parser
         parser = _build_parser()
         args = parser.parse_args(["linux", "-r", "10.0.0.0/24"])
         assert args.compliance is False

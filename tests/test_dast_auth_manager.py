@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from skyhigh_scanner.core.credential_manager import (
+from vulnerability_management.core.credential_manager import (
     CredentialManager,
 )
-from skyhigh_scanner.dast.auth_manager import AuthManager, AuthResult
-from skyhigh_scanner.dast.config import DastConfig, ScopePolicy
-from skyhigh_scanner.dast.crawler import FormField, FormInfo, SiteMap
+from vulnerability_management.dast.auth_manager import AuthManager, AuthResult
+from vulnerability_management.dast.config import DastConfig, ScopePolicy
+from vulnerability_management.dast.crawler import FormField, FormInfo, SiteMap
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Helpers

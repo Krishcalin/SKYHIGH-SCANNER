@@ -6,13 +6,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from skyhigh_scanner.dast.config import (
+from vulnerability_management.dast.config import (
     DastConfig,
     RequestLimitExceeded,
     ScopePolicy,
     ScopeViolation,
 )
-from skyhigh_scanner.dast.http_client import DastHTTPClient, RequestEvidence
+from vulnerability_management.dast.http_client import DastHTTPClient, RequestEvidence
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # RequestEvidence

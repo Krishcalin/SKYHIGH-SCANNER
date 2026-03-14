@@ -1,8 +1,8 @@
-"""Tests for skyhigh_scanner.core.reporting."""
+"""Tests for vulnerability_management.core.reporting."""
 
 import pytest
 
-from skyhigh_scanner.core.reporting import (
+from vulnerability_management.core.reporting import (
     SEVERITY_BADGE,
     THEME_COLORS,
     _build_charts_data,
@@ -118,7 +118,7 @@ class TestHtmlReport:
 
     def test_html_escaping(self):
         """Ensure XSS-prone content is escaped."""
-        from skyhigh_scanner.core.finding import Finding
+        from vulnerability_management.core.finding import Finding
 
         f = Finding(
             rule_id="XSS-001",
@@ -271,8 +271,8 @@ class TestBuildPdfHtml:
         assert "Total" in html_out
 
     def test_compliance_section(self):
-        from skyhigh_scanner.core.compliance import enrich_finding
-        from skyhigh_scanner.core.finding import Finding
+        from vulnerability_management.core.compliance import enrich_finding
+        from vulnerability_management.core.finding import Finding
 
         f = Finding(
             rule_id="PDF-001", name="SQL Injection", category="Injection",
@@ -290,7 +290,7 @@ class TestBuildPdfHtml:
         assert "NIST" in html_out
 
     def test_epss_badge(self):
-        from skyhigh_scanner.core.finding import Finding
+        from vulnerability_management.core.finding import Finding
 
         f = Finding(
             rule_id="PDF-002", name="Test", category="Test",
@@ -307,7 +307,7 @@ class TestBuildPdfHtml:
         assert "epss-high" in html_out
 
     def test_html_escaping(self):
-        from skyhigh_scanner.core.finding import Finding
+        from vulnerability_management.core.finding import Finding
 
         f = Finding(
             rule_id="XSS-001",
@@ -338,7 +338,7 @@ class TestGeneratePdfReport:
 
     def test_raises_without_weasyprint(self, monkeypatch):
         """When weasyprint is not installed, generate_pdf_report raises RuntimeError."""
-        import skyhigh_scanner.core.reporting as rmod
+        import vulnerability_management.core.reporting as rmod
         monkeypatch.setattr(rmod, "HAS_WEASYPRINT", False)
         with pytest.raises(RuntimeError, match="weasyprint"):
             generate_pdf_report(
@@ -349,7 +349,7 @@ class TestGeneratePdfReport:
         """Enable weasyprint mock so generate_pdf_report doesn't skip or fail."""
         from unittest.mock import MagicMock
 
-        import skyhigh_scanner.core.reporting as rmod
+        import vulnerability_management.core.reporting as rmod
 
         fake_pdf = b"%PDF-1.4 fake pdf content for testing"
         mock_html_cls = MagicMock()
@@ -370,8 +370,8 @@ class TestGeneratePdfReport:
         assert result[:5] == b"%PDF-"
 
     def test_pdf_with_compliance(self, monkeypatch):
-        from skyhigh_scanner.core.compliance import enrich_finding
-        from skyhigh_scanner.core.finding import Finding
+        from vulnerability_management.core.compliance import enrich_finding
+        from vulnerability_management.core.finding import Finding
 
         self._mock_weasyprint(monkeypatch)
         f = Finding(
@@ -408,19 +408,19 @@ class TestCliPdfFlag:
     """Test that the --pdf CLI argument is accepted."""
 
     def test_pdf_flag_parses(self):
-        from skyhigh_scanner.__main__ import _build_parser
+        from vulnerability_management.__main__ import _build_parser
         parser = _build_parser()
         args = parser.parse_args(["linux", "-r", "10.0.0.0/24", "--pdf", "report.pdf"])
         assert args.pdf_file == "report.pdf"
 
     def test_pdf_default_none(self):
-        from skyhigh_scanner.__main__ import _build_parser
+        from vulnerability_management.__main__ import _build_parser
         parser = _build_parser()
         args = parser.parse_args(["linux", "-r", "10.0.0.0/24"])
         assert args.pdf_file is None
 
     def test_pdf_with_other_outputs(self):
-        from skyhigh_scanner.__main__ import _build_parser
+        from vulnerability_management.__main__ import _build_parser
         parser = _build_parser()
         args = parser.parse_args([
             "linux", "-r", "10.0.0.0/24",
@@ -478,7 +478,7 @@ class TestBuildChartsData:
         assert data["epss"]["data"][0] == 0  # >=50%
 
     def test_epss_buckets_mixed(self):
-        from skyhigh_scanner.core.finding import Finding
+        from vulnerability_management.core.finding import Finding
         findings = [
             Finding(rule_id="E-1", name="t", category="C", severity="HIGH",
                     file_path="x", line_num=0, line_content="", description="d",
@@ -499,7 +499,7 @@ class TestBuildChartsData:
         assert data["epss"]["data"] == [1, 1, 1, 1]  # high, med, low, none
 
     def test_top_targets_limited_to_10(self):
-        from skyhigh_scanner.core.finding import Finding
+        from vulnerability_management.core.finding import Finding
         findings = [
             Finding(rule_id=f"T-{i}", name="t", category="C", severity="HIGH",
                     file_path=f"10.0.0.{i}", line_num=0, line_content="",
@@ -510,7 +510,7 @@ class TestBuildChartsData:
         assert len(data["targets"]["labels"]) == 10
 
     def test_top_categories_limited_to_12(self):
-        from skyhigh_scanner.core.finding import Finding
+        from vulnerability_management.core.finding import Finding
         findings = [
             Finding(rule_id=f"C-{i}", name="t", category=f"Cat{i}", severity="HIGH",
                     file_path="x", line_num=0, line_content="",

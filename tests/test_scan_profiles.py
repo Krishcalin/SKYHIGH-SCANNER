@@ -2,7 +2,7 @@
 
 import pytest
 
-from skyhigh_scanner.core.scan_profiles import (
+from vulnerability_management.core.scan_profiles import (
     CATEGORIES,
     DEFAULT_PROFILE,
     PROFILES,
@@ -10,7 +10,7 @@ from skyhigh_scanner.core.scan_profiles import (
     get_profile,
     list_profiles,
 )
-from skyhigh_scanner.core.scanner_base import ScannerBase
+from vulnerability_management.core.scanner_base import ScannerBase
 
 # ── Profile definitions ───────────────────────────────────────────────
 
@@ -177,7 +177,7 @@ class TestScannerBaseProfile:
 
 class TestCliProfileArg:
     def test_profile_default(self):
-        from skyhigh_scanner.__main__ import _build_parser
+        from vulnerability_management.__main__ import _build_parser
         parser = _build_parser()
         args = parser.parse_args(["linux", "-r", "10.0.0.0/24"])
         assert args.profile == "standard"
@@ -186,26 +186,26 @@ class TestCliProfileArg:
         "quick", "standard", "full", "compliance", "cve-only",
     ])
     def test_profile_choices(self, profile):
-        from skyhigh_scanner.__main__ import _build_parser
+        from vulnerability_management.__main__ import _build_parser
         parser = _build_parser()
         args = parser.parse_args(["linux", "-r", "10.0.0.0/24", "--profile", profile])
         assert args.profile == profile
 
     def test_invalid_profile_rejected(self):
-        from skyhigh_scanner.__main__ import _build_parser
+        from vulnerability_management.__main__ import _build_parser
         parser = _build_parser()
         with pytest.raises(SystemExit):
             parser.parse_args(["linux", "-r", "10.0.0.0/24", "--profile", "invalid"])
 
     def test_profile_with_all_scan_types(self):
-        from skyhigh_scanner.__main__ import _build_parser
+        from vulnerability_management.__main__ import _build_parser
         parser = _build_parser()
         for cmd in ("auto", "windows", "linux", "cisco", "webserver", "middleware", "database"):
             args = parser.parse_args([cmd, "-r", "10.0.0.1", "--profile", "quick"])
             assert args.profile == "quick"
 
     def test_profile_combined_with_severity(self):
-        from skyhigh_scanner.__main__ import _build_parser
+        from vulnerability_management.__main__ import _build_parser
         parser = _build_parser()
         args = parser.parse_args([
             "linux", "-r", "10.0.0.0/24",
@@ -216,7 +216,7 @@ class TestCliProfileArg:
         assert args.severity == "CRITICAL"
 
     def test_profile_with_output_flags(self):
-        from skyhigh_scanner.__main__ import _build_parser
+        from vulnerability_management.__main__ import _build_parser
         parser = _build_parser()
         args = parser.parse_args([
             "linux", "-r", "10.0.0.1",

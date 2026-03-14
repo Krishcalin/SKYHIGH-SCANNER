@@ -1,11 +1,11 @@
-# SkyHigh Scanner — Project Context for Claude
+# Vulnerability Management Scanner — Project Context for Claude
 
 ## Project Overview
-**SkyHigh Scanner** is an enterprise-grade active vulnerability scanner built in Python.
+**Vulnerability Management Scanner** is an enterprise-grade active vulnerability scanner built in Python.
 It connects to live hosts (SSH, WinRM, SNMP, HTTP, SMB) to perform authenticated security assessments,
 CIS benchmark checks, and CVE detection across 23+ platforms.
 
-- **Repository**: `c:\KRISHNENDU\PROJECTS\SkyHigh-Scanner\SKYHIGH-SCANNER`
+- **Repository**: Vulnerability-Management (GitHub: `Krishcalin/Vulnerability-Management`)
 - **Branch**: `main`
 - **Version**: 1.0.0
 - **License**: MIT
@@ -15,7 +15,7 @@ CIS benchmark checks, and CVE detection across 23+ platforms.
 
 ### Package Structure
 ```
-skyhigh_scanner/
+vulnerability_management/
 ├── __init__.py          # VERSION = "1.0.0"
 ├── __main__.py          # CLI entry point (argparse)
 ├── core/                # Shared infrastructure
@@ -129,20 +129,20 @@ tests/                   # 999 pytest tests (all passing, 0 skipped)
 
 ### CLI Commands
 ```bash
-python -m skyhigh_scanner auto       -r 192.168.1.0/24    # Auto-discover + scan
-python -m skyhigh_scanner windows    -r 192.168.1.0/24    # Windows hosts
-python -m skyhigh_scanner linux      -r 10.0.0.0/24       # Linux hosts
-python -m skyhigh_scanner cisco      -r 10.1.1.0/24       # Cisco devices
-python -m skyhigh_scanner webserver  --target https://...  # Web servers
-python -m skyhigh_scanner middleware -r 10.0.0.0/24        # Middleware
-python -m skyhigh_scanner database   -r 10.0.0.0/24        # Databases
-python -m skyhigh_scanner dast       --target https://...  # DAST web app scanning
-python -m skyhigh_scanner cve-sync   --api-key KEY         # Full sync NVD API + EPSS + KEV
-python -m skyhigh_scanner cve-sync   --incremental          # Delta sync (changes since last sync)
-python -m skyhigh_scanner cve-sync   --platform nginx tomcat # Sync specific platforms only
-python -m skyhigh_scanner cve-import                        # Import seed CVEs
-python -m skyhigh_scanner cve-stats                         # Show CVE + EPSS + sync stats
-python -m skyhigh_scanner epss-sync                         # Update EPSS scores from FIRST.org
+python -m vulnerability_management auto       -r 192.168.1.0/24    # Auto-discover + scan
+python -m vulnerability_management windows    -r 192.168.1.0/24    # Windows hosts
+python -m vulnerability_management linux      -r 10.0.0.0/24       # Linux hosts
+python -m vulnerability_management cisco      -r 10.1.1.0/24       # Cisco devices
+python -m vulnerability_management webserver  --target https://...  # Web servers
+python -m vulnerability_management middleware -r 10.0.0.0/24        # Middleware
+python -m vulnerability_management database   -r 10.0.0.0/24        # Databases
+python -m vulnerability_management dast       --target https://...  # DAST web app scanning
+python -m vulnerability_management cve-sync   --api-key KEY         # Full sync NVD API + EPSS + KEV
+python -m vulnerability_management cve-sync   --incremental          # Delta sync (changes since last sync)
+python -m vulnerability_management cve-sync   --platform nginx tomcat # Sync specific platforms only
+python -m vulnerability_management cve-import                        # Import seed CVEs
+python -m vulnerability_management cve-stats                         # Show CVE + EPSS + sync stats
+python -m vulnerability_management epss-sync                         # Update EPSS scores from FIRST.org
 ```
 
 ### Key Patterns
@@ -168,14 +168,14 @@ python -m skyhigh_scanner epss-sync                         # Update EPSS scores
 - **Plugin architecture**: `@scanner_plugin` decorator, auto-discovery from `plugins/` dir + `--plugin-dir` + entry-points
 - **Scan profiles**: `--profile quick|standard|full|compliance|cve-only` — category-based gating
 - **Parallel scanning**: Auto Scanner v1.2.0 uses ThreadPoolExecutor for multi-host dispatch
-- **Config files**: `--config FILE` or auto-discover `skyhigh-scanner.yml/.yaml/.toml`, CLI always overrides
+- **Config files**: `--config FILE` or auto-discover `vulnerability-management.yml/.yaml/.toml`, CLI always overrides
 - **Baseline diff**: `--baseline FILE` compares current vs previous JSON scan (NEW/FIXED/UNCHANGED)
 - **PDF export**: `--pdf FILE` via optional weasyprint, print-optimised white-bg layout
 
 ## CVE Database
 - **510 curated CVEs** across 21 seed files, 35 platforms (deduplicated in Phase 3)
 - **159 CISA KEV** flagged entries
-- **SQLite** backend at `skyhigh_scanner/cve_data/skyhigh_scanner.db`
+- **SQLite** backend at `vulnerability_management/cve_data/vulnerability_management.db`
 - **NVD API 2.0** sync with rate limiting (6s without key, 0.6s with key)
 - **EPSS scores** from FIRST.org API — exploit probability (0-100%) for each CVE
 - **Vendor feeds**: MSRC, Cisco PSIRT, Ubuntu USN, Red Hat RHSA (stubs)
@@ -299,7 +299,7 @@ python -m skyhigh_scanner epss-sync                         # Update EPSS scores
 - **67 new tests** in `test_auto_scanner.py`
 
 ### Phase 11 — Config File Support
-- **`--config FILE`** or auto-discover `skyhigh-scanner.yml/.yaml/.toml`
+- **`--config FILE`** or auto-discover `vulnerability-management.yml/.yaml/.toml`
 - **Built-in YAML parser** (no PyYAML dependency needed)
 - **Key validation** against `_VALID_KEYS` frozenset
 - **CLI always overrides** config file values
@@ -384,9 +384,9 @@ python -m skyhigh_scanner epss-sync                         # Update EPSS scores
 pip install -r requirements-dev.txt    # pytest, pytest-cov, ruff, mypy
 pip install requests                    # Required for EPSS/sync tests
 pytest                                  # Run all 999 tests
-pytest --cov=skyhigh_scanner.core       # With coverage
+pytest --cov=vulnerability_management.core       # With coverage
 pytest tests/test_seed_validation.py    # Seed integrity only
-ruff check skyhigh_scanner/ tests/      # Lint
+ruff check vulnerability_management/ tests/      # Lint
 ```
 
 ### Test Files

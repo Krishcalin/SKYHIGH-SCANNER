@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from skyhigh_scanner.dast.config import DastConfig, ScopePolicy
-from skyhigh_scanner.dast.crawler import SiteMap
-from skyhigh_scanner.scanners.dast_scanner import DastScanner
+from vulnerability_management.dast.config import DastConfig, ScopePolicy
+from vulnerability_management.dast.crawler import SiteMap
+from vulnerability_management.scanners.dast_scanner import DastScanner
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Initialization
@@ -15,7 +15,7 @@ from skyhigh_scanner.scanners.dast_scanner import DastScanner
 class TestDastScannerInit:
     def test_basic_init(self):
         scanner = DastScanner(target="https://app.example.com")
-        assert scanner.SCANNER_NAME == "SkyHigh DAST Scanner"
+        assert scanner.SCANNER_NAME == "VulnMgmt DAST Scanner"
         assert scanner.TARGET_TYPE == "dast"
         assert scanner.target == "https://app.example.com"
 
@@ -118,7 +118,7 @@ class TestDastScannerScan:
     def test_scan_no_requests_library(self):
         """Scan should error gracefully if requests is not installed."""
         scanner = DastScanner(target="https://example.com")
-        with patch("skyhigh_scanner.core.transport.HAS_REQUESTS", False):
+        with patch("vulnerability_management.core.transport.HAS_REQUESTS", False):
             scanner.scan()
         assert len(scanner.findings) == 0
         assert len(scanner.targets_failed) == 0
@@ -143,7 +143,7 @@ class TestDastScannerScan:
         mock_response.request = MagicMock()
         mock_response.request.headers = {}
 
-        with patch("skyhigh_scanner.dast.http_client.requests") as mock_requests:
+        with patch("vulnerability_management.dast.http_client.requests") as mock_requests:
             mock_session = MagicMock()
             mock_requests.Session.return_value = mock_session
             mock_session.request.return_value = mock_response
@@ -164,7 +164,7 @@ class TestDastScannerScan:
         )
 
         with patch(
-            "skyhigh_scanner.dast.http_client.requests",
+            "vulnerability_management.dast.http_client.requests",
         ) as mock_requests:
             mock_requests.Session.side_effect = Exception("Connection refused")
             scanner.scan()
@@ -211,7 +211,7 @@ class TestWarningBanner:
 
 class TestDastCLI:
     def test_dast_command_parses(self):
-        from skyhigh_scanner.__main__ import _build_parser
+        from vulnerability_management.__main__ import _build_parser
         parser = _build_parser()
         args = parser.parse_args([
             "dast", "--target", "https://app.example.com",
@@ -224,7 +224,7 @@ class TestDastCLI:
         assert args.dast_passive_only is True
 
     def test_dast_auth_mode_parses(self):
-        from skyhigh_scanner.__main__ import _build_parser
+        from vulnerability_management.__main__ import _build_parser
         parser = _build_parser()
         args = parser.parse_args([
             "dast", "--target", "https://app.example.com",
@@ -235,7 +235,7 @@ class TestDastCLI:
         assert args.dast_auth_token == "mytoken"
 
     def test_dast_defaults(self):
-        from skyhigh_scanner.__main__ import _build_parser
+        from vulnerability_management.__main__ import _build_parser
         parser = _build_parser()
         args = parser.parse_args([
             "dast", "--target", "https://example.com",
@@ -249,7 +249,7 @@ class TestDastCLI:
         assert args.dast_accept_risk is False
 
     def test_dast_all_flags(self):
-        from skyhigh_scanner.__main__ import _build_parser
+        from vulnerability_management.__main__ import _build_parser
         parser = _build_parser()
         args = parser.parse_args([
             "dast", "--target", "https://example.com",
